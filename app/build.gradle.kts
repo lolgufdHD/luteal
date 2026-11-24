@@ -10,12 +10,19 @@ plugins {
     alias(libs.plugins.openapi.generator)
 }
 
+// Opt-in side-by-side build (-Pluteal.sideBySide=true): a separate
+// applicationId and launcher label so it installs next to the regular
+// fr.luteal.app instead of replacing it. Default builds, including F-Droid's,
+// are unaffected.
+val sideBySide = providers.gradleProperty("luteal.sideBySide").orNull == "true"
+
 android {
     namespace = "fr.luteal.app"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "fr.luteal.app"
+        applicationId = if (sideBySide) "fr.luteal.app.custom" else "fr.luteal.app"
+        manifestPlaceholders["appLabel"] = if (sideBySide) "Luteal Custom" else "@string/app_name"
         minSdk = 26
         targetSdk = 35
         versionCode = 18

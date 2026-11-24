@@ -71,7 +71,9 @@ jobs:
           EOF
 
       - name: Build clean release APK
-        run: ./gradlew clean assembleRelease --no-build-cache
+        # Side-by-side build: installs next to the regular fr.luteal.app
+        # (see luteal.sideBySide in app/build.gradle.kts).
+        run: ./gradlew clean assembleRelease --no-build-cache -Pluteal.sideBySide=true
 
       - name: Verify release APK and signature
         run: |
