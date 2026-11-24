@@ -12,8 +12,10 @@ import kotlinx.serialization.Serializable
  * not because the server filtered it afterwards. The server therefore cannot
  * leak what it never received.
  *
- * Private notes and raw observations have no representation here at all, by
- * construction rather than by policy.
+ * Private notes, symptoms, pain and biomarkers have no representation here at
+ * all, by construction rather than by policy. Day-level flow, mood/energy and
+ * pill days appear only inside [history], and only for the categories the
+ * tracker explicitly granted on their own device.
  */
 @Serializable
 data class DuoProjection(
@@ -23,7 +25,12 @@ data class DuoProjection(
     @SerialName("period_estimate") val periodEstimate: SharedEstimate? = null,
     @SerialName("mood") val mood: SharedLevel? = null,
     @SerialName("energy") val energy: SharedLevel? = null,
-    @SerialName("pill_status") val pillStatus: SharedPillStatus? = null
+    @SerialName("pill_status") val pillStatus: SharedPillStatus? = null,
+    /**
+     * Shared journal. Optional and additive: older clients ignore it
+     * (ContractJson has ignoreUnknownKeys), so the payload version stays 1.
+     */
+    @SerialName("history") val history: SharedHistory? = null
 ) {
     companion object {
         const val CURRENT_VERSION = 1
@@ -43,6 +50,48 @@ data class SharedEstimate(
 data class SharedLevel(
     @SerialName("date") val date: String,
     @SerialName("level") val level: Int
+)
+
+/**
+ * A window of the tracker's journal, reduced to the categories they granted.
+ * Each list is null when its category is not granted. Notes, symptoms, pain
+ * and biomarkers have no representation here.
+ */
+@Serializable
+data class SharedHistory(
+    /** First shared date (inclusive), ISO-8601. Nothing before it is sent. */
+    @SerialName("from") val from: String,
+    /** Last shared date (inclusive), normally the tracker's "today". */
+    @SerialName("to") val to: String,
+    @SerialName("months") val months: Int,
+    @SerialName("cycle_starts") val cycleStarts: List<String>? = null,
+    @SerialName("flow") val flow: List<SharedFlowDay>? = null,
+    @SerialName("estimate") val estimate: SharedEstimate? = null,
+    @SerialName("levels") val levels: List<SharedDayLevels>? = null,
+    @SerialName("pill") val pill: SharedPillHistory? = null
+)
+
+@Serializable
+data class SharedFlowDay(
+    @SerialName("date") val date: String,
+    /** One of spotting, light, medium, heavy. */
+    @SerialName("intensity") val intensity: String
+)
+
+@Serializable
+data class SharedDayLevels(
+    @SerialName("date") val date: String,
+    @SerialName("mood") val mood: Int? = null,
+    @SerialName("energy") val energy: Int? = null
+)
+
+@Serializable
+data class SharedPillHistory(
+    /** Start of the pack that contains [SharedHistory.from], not the original regimen start. */
+    @SerialName("anchor") val anchor: String,
+    @SerialName("active_days") val activeDays: Int,
+    @SerialName("pause_days") val pauseDays: Int,
+    @SerialName("taken") val takenDates: List<String> = emptyList()
 )
 
 @Serializable

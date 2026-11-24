@@ -79,7 +79,10 @@ import fr.luteal.core.designsystem.component.StatusTone
 import fr.luteal.core.designsystem.theme.LutealSpacing
 import fr.luteal.app.widget.WidgetFreshness
 import fr.luteal.core.model.CurrentCyclePhase
+import fr.luteal.core.model.DuoSharingField
+import fr.luteal.core.model.DuoSharingPreferences
 import fr.luteal.core.model.QuickSupportNudges
+import androidx.compose.ui.res.pluralStringResource
 import fr.luteal.core.network.contract.models.GrantField
 import fr.luteal.core.network.contract.models.SupportKind
 import fr.luteal.core.network.contract.models.SupportRequest
@@ -101,6 +104,12 @@ fun DuoScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showGuideSheet by remember { mutableStateOf(false) }
+    val historyActions = remember(viewModel) {
+        HistorySharingActions(
+            onToggle = viewModel::toggleHistorySharing,
+            onSetMonths = viewModel::setHistoryMonths
+        )
+    }
     // Reload every time the Duo tab is opened. The ViewModel is Activity-scoped
     // and survives tab switches, so without this it keeps showing whatever was
     // true when it was first created - notably "synchronisation requise" after
@@ -171,6 +180,7 @@ fun DuoScreen(
                 state = state,
                 onToggleGrant = { field, granted -> viewModel.toggleGrant(field, granted) },
                 onTogglePillSharing = { granted -> viewModel.togglePillStatusSharing(granted) },
+                historyActions = historyActions,
                 pairingCode = state.shareableUrl ?: state.invitation?.pairingCode,
                 onCancel = { viewModel.revokeLink() }
             )
@@ -178,6 +188,7 @@ fun DuoScreen(
                 state = state,
                 onToggleGrant = { field, granted -> viewModel.toggleGrant(field, granted) },
                 onTogglePillSharing = { granted -> viewModel.togglePillStatusSharing(granted) },
+                historyActions = historyActions,
                 onRevoke = { viewModel.revokeLink() },
                 onSendSupport = { kind, msg -> viewModel.sendSupportRequest(kind, msg) },
                 onAck = { viewModel.ackSupportRequest(it) },
@@ -335,6 +346,7 @@ private fun InvitationPendingSection(
     state: DuoUiState,
     onToggleGrant: (GrantField, Boolean) -> Unit,
     onTogglePillSharing: (Boolean) -> Unit,
+    historyActions: HistorySharingActions,
     pairingCode: String?,
     onCancel: () -> Unit
 ) {
@@ -402,7 +414,8 @@ private fun InvitationPendingSection(
     DuoGrantsSection(
         state = state,
         onToggleGrant = onToggleGrant,
-        onTogglePillSharing = onTogglePillSharing
+        onTogglePillSharing = onTogglePillSharing,
+        historyActions = historyActions
     )
 }
 
@@ -413,6 +426,7 @@ private fun TrackerActiveSection(
     state: DuoUiState,
     onToggleGrant: (GrantField, Boolean) -> Unit,
     onTogglePillSharing: (Boolean) -> Unit,
+    historyActions: HistorySharingActions,
     onRevoke: () -> Unit,
     onSendSupport: (SupportKind, String) -> Unit,
     onAck: (String) -> Unit,
@@ -460,7 +474,8 @@ private fun TrackerActiveSection(
     DuoGrantsSection(
         state = state,
         onToggleGrant = onToggleGrant,
-        onTogglePillSharing = onTogglePillSharing
+        onTogglePillSharing = onTogglePillSharing,
+        historyActions = historyActions
     )
 
     // Exact preview of what the partner receives: rendered from the same
@@ -479,7 +494,8 @@ private fun TrackerActiveSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            val anyGranted = state.grants.values.any { it } || state.sharePillStatus
+            val anyGranted = state.grants.values.any { it } || state.sharePillStatus ||
+                state.historySharing.sharesAnyHistory
             val partnerPhase = state.partnerPhase
             if (!state.keyMissing && anyGranted && partnerPhase is CurrentCyclePhase.Available) {
                 PartnerPhaseBadge(
@@ -802,8 +818,10 @@ private fun PartnerActiveSection(
 private fun SharedProjectionList(state: DuoUiState) {
     val projection = state.projection
     val locale = LocalConfiguration.current.locales[0]
-    val anyGranted = state.grants.values.any { it } || state.sharePillStatus || projection?.pillStatus != null
     val isTracker = state.phase == DuoPhase.TrackerActive
+    val anyGranted = state.grants.values.any { it } || state.sharePillStatus ||
+        projection?.pillStatus != null || projection?.history != null ||
+        (isTracker && state.historySharing.sharesAnyHistory)
 
     when {
         // The link key lives only on the paired devices. Without it the payload
@@ -869,6 +887,15 @@ private fun SharedProjectionList(state: DuoUiState) {
                     }
                     add(line)
                 }
+                projection.history?.let { history ->
+                    add(
+                        stringResource(
+                            if (isTracker) R.string.duo_view_history_tracker
+                            else R.string.duo_view_history_partner,
+                            history.months
+                        )
+                    )
+                }
             }
 
             if (items.isEmpty()) {
@@ -900,7 +927,8 @@ private fun SharedProjectionList(state: DuoUiState) {
 private fun DuoGrantsSection(
     state: DuoUiState,
     onToggleGrant: (GrantField, Boolean) -> Unit,
-    onTogglePillSharing: (Boolean) -> Unit
+    onTogglePillSharing: (Boolean) -> Unit,
+    historyActions: HistorySharingActions
 ) {
     LutealCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)) {
@@ -973,6 +1001,83 @@ private fun DuoGrantsSection(
                 state = state,
                 onToggleGrant = onToggleGrant
             )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            SharedJournalGrants(
+                sharing = state.historySharing,
+                showPill = state.isPillRegimenEnabled || state.historySharing.shareHistoryPill,
+                actions = historyActions
+            )
+        }
+    }
+}
+
+/** Device-local shared-journal grants; see [fr.luteal.core.model.DuoSharingPreferences]. */
+internal class HistorySharingActions(
+    val onToggle: (DuoSharingField, Boolean) -> Unit,
+    val onSetMonths: (Int) -> Unit
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SharedJournalGrants(
+    sharing: DuoSharingPreferences,
+    showPill: Boolean,
+    actions: HistorySharingActions
+) {
+    Text(
+        text = stringResource(R.string.duo_history_group_title),
+        style = MaterialTheme.typography.titleSmall
+    )
+    Text(
+        text = stringResource(R.string.duo_history_group_body),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    BooleanGrantToggle(
+        checked = sharing.shareHistoryFlow,
+        titleRes = R.string.duo_share_history_flow,
+        descRes = R.string.duo_share_history_flow_desc,
+        onCheckedChange = { actions.onToggle(DuoSharingField.HISTORY_FLOW, it) }
+    )
+    BooleanGrantToggle(
+        checked = sharing.shareHistoryEstimate,
+        titleRes = R.string.duo_share_history_estimate,
+        descRes = R.string.duo_share_history_estimate_desc,
+        onCheckedChange = { actions.onToggle(DuoSharingField.HISTORY_ESTIMATE, it) }
+    )
+    BooleanGrantToggle(
+        checked = sharing.shareHistoryLevels,
+        titleRes = R.string.duo_share_history_levels,
+        descRes = R.string.duo_share_history_levels_desc,
+        onCheckedChange = { actions.onToggle(DuoSharingField.HISTORY_LEVELS, it) }
+    )
+    if (showPill) {
+        BooleanGrantToggle(
+            checked = sharing.shareHistoryPill,
+            titleRes = R.string.duo_share_history_pill,
+            descRes = R.string.duo_share_history_pill_desc,
+            onCheckedChange = { actions.onToggle(DuoSharingField.HISTORY_PILL, it) }
+        )
+    }
+    if (sharing.sharesAnyHistory) {
+        Text(
+            text = stringResource(R.string.duo_history_range_label),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
+            DuoSharingPreferences.HISTORY_MONTH_OPTIONS.forEach { months ->
+                FilterChip(
+                    selected = sharing.historyMonths == months,
+                    onClick = { actions.onSetMonths(months) },
+                    label = {
+                        Text(
+                            pluralStringResource(R.plurals.duo_history_range_months, months, months)
+                        )
+                    }
+                )
+            }
         }
     }
 }

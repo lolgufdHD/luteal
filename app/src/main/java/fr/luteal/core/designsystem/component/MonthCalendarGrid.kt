@@ -425,7 +425,7 @@ private fun CalendarDot(color: Color, size: Dp) {
  * - filled = false: outline with a centre seam only (scheduled / pause)
  */
 @Composable
-fun CalendarPillCapsule(color: Color, filled: Boolean, size: Dp = 12.dp) {
+fun CalendarPillCapsule(color: Color, filled: Boolean, size: Dp = 18.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val strokeWidth = 1.dp.toPx()
         val length = this.size.minDimension - strokeWidth

@@ -129,6 +129,7 @@ class DuoViewModel @Inject constructor(
                     val missingLink = err is fr.luteal.core.network.FolicularApiException && err.status == 404
                     if (missingLink) {
                         widgetCacheRepository.clear()
+                        projectionSynchronizer.clearPartnerHistory()
                         val preservedUrl = _uiState.value.shareableUrl
                         val preservedInvitation = _uiState.value.invitation
                         _uiState.update {
@@ -243,6 +244,7 @@ class DuoViewModel @Inject constructor(
                 grants = effectiveGrants?.associateWith { true } ?: it.grants,
                 isPillRegimenEnabled = prefs.isPillRegimenEnabled,
                 sharePillStatus = prefs.duoSharing.sharePillStatus,
+                historySharing = prefs.duoSharing,
                 isPartnerPillReminderEnabled = prefs.isDuoPartnerPillReminderEnabled,
                 isPartnerPillTakenAlertEnabled = prefs.isDuoPartnerPillTakenAlertEnabled,
                 keyMissing = decodedProjection == DuoProjectionDecodeResult.KeyMissing,
@@ -264,6 +266,7 @@ class DuoViewModel @Inject constructor(
                 grants = sharing.toGrantMap(),
                 isPillRegimenEnabled = prefs.isPillRegimenEnabled,
                 sharePillStatus = sharing.sharePillStatus,
+                historySharing = sharing,
                 isPartnerPillReminderEnabled = prefs.isDuoPartnerPillReminderEnabled,
                 isPartnerPillTakenAlertEnabled = prefs.isDuoPartnerPillTakenAlertEnabled
             )
@@ -311,6 +314,29 @@ class DuoViewModel @Inject constructor(
                 )
             }
             if (_uiState.value.phase == DuoPhase.TrackerActive) {
+                publishProjection()
+            }
+        }
+    }
+
+    /** Shared-journal grants are device-local, like pill status; see [DuoSharingPreferences]. */
+    fun toggleHistorySharing(field: DuoSharingField, granted: Boolean) {
+        viewModelScope.launch {
+            userRepository.updateDuoSharing(field, granted)
+            val sharing = userRepository.getUserPreferences().first().duoSharing
+            _uiState.update { it.copy(historySharing = sharing) }
+            if (_uiState.value.phase == DuoPhase.TrackerActive) {
+                publishProjection()
+            }
+        }
+    }
+
+    fun setHistoryMonths(months: Int) {
+        viewModelScope.launch {
+            userRepository.setDuoHistoryMonths(months)
+            val sharing = userRepository.getUserPreferences().first().duoSharing
+            _uiState.update { it.copy(historySharing = sharing) }
+            if (_uiState.value.phase == DuoPhase.TrackerActive && sharing.sharesAnyHistory) {
                 publishProjection()
             }
         }
@@ -421,6 +447,7 @@ class DuoViewModel @Inject constructor(
                 .onSuccess {
                     duoKeyStore.remove(linkId)
                     widgetCacheRepository.clear()
+                    projectionSynchronizer.clearPartnerHistory()
                     _uiState.update {
                         DuoUiState(phase = DuoPhase.NoLink)
                     }
@@ -431,6 +458,7 @@ class DuoViewModel @Inject constructor(
                     if (alreadyDead) {
                         duoKeyStore.remove(linkId)
                         widgetCacheRepository.clear()
+                        projectionSynchronizer.clearPartnerHistory()
                         _uiState.update {
                             DuoUiState(phase = DuoPhase.NoLink)
                         }
@@ -536,6 +564,7 @@ class DuoViewModel @Inject constructor(
                 grants = cachedGrants,
                 isPillRegimenEnabled = prefs.isPillRegimenEnabled,
                 sharePillStatus = prefs.duoSharing.sharePillStatus,
+                historySharing = prefs.duoSharing,
                 isPartnerPillReminderEnabled = prefs.isDuoPartnerPillReminderEnabled,
                 isPartnerPillTakenAlertEnabled = prefs.isDuoPartnerPillTakenAlertEnabled,
                 lastRefreshedAt = cached.refreshedAt,
@@ -641,6 +670,8 @@ data class DuoUiState(
     val grants: Map<GrantField, Boolean> = emptyMap(),
     val isPillRegimenEnabled: Boolean = false,
     val sharePillStatus: Boolean = false,
+    /** Tracker side: device-local shared-journal grants and time range. */
+    val historySharing: DuoSharingPreferences = DuoSharingPreferences(),
     val isPartnerPillReminderEnabled: Boolean = false,
     val isPartnerPillTakenAlertEnabled: Boolean = false,
     val supportDraft: String = "",

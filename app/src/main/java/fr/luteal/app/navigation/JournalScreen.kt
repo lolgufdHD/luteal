@@ -28,6 +28,12 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.platform.LocalDensity
 import fr.luteal.core.designsystem.component.CalendarWeekdayHeader
+import androidx.compose.material3.FilterChip
+import fr.luteal.core.model.CycleEstimateResult
+import fr.luteal.core.model.PillRegimenConfig
+import fr.luteal.core.model.SharedHistory
+import fr.luteal.core.model.SharedHistoryMapper
+import fr.luteal.core.network.ContractJson
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.rounded.Description
@@ -156,13 +162,60 @@ fun JournalScreen(
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     val stickyHeaderOffsetPx = with(density) { CalendarStickyHeaderHeight.roundToPx() }
-    // Months scroll vertically: from the earliest recorded data (at least a
-    // year back) to a year ahead, so the estimate stays reachable.
-    val calendarMonths = remember(state.today, state.cycles, state.entries) {
+    // Duo partner side: the tracker's shared journal, as last received.
+    val partnerInputs = remember(state.preferences.duoPartnerSharedHistoryJson) {
+        state.preferences.duoPartnerSharedHistoryJson
+            ?.let { raw -> runCatching { ContractJson.decodeFromString(SharedHistory.serializer(), raw) }.getOrNull() }
+            ?.let(SharedHistoryMapper::toCalendarInputs)
+    }
+    // Someone who only follows a partner and records nothing lands on the
+    // partner's calendar; anyone with their own records starts on theirs.
+    var showPartnerCalendar by rememberSaveable {
+        mutableStateOf(state.cycles.isEmpty() && state.entries.isEmpty())
+    }
+    val viewingPartner = showPartnerCalendar && partnerInputs != null
+    val calendarSource = remember(viewingPartner, partnerInputs, state.cycles, state.entries, state.estimateResult, state.biomarkers, state.preferences) {
+        if (viewingPartner && partnerInputs != null) {
+            CalendarSource(
+                cycles = partnerInputs.cycles,
+                entries = partnerInputs.entries,
+                estimateResult = partnerInputs.estimateResult,
+                biomarkers = emptyList(),
+                pillConfig = partnerInputs.pillConfig,
+                firstMonth = YearMonth.from(partnerInputs.from),
+                lastDataMonth = listOfNotNull(
+                    YearMonth.from(partnerInputs.to),
+                    (partnerInputs.estimateResult as? CycleEstimateResult.Available)
+                        ?.estimate?.latestDate?.let(YearMonth::from)
+                ).max()
+            )
+        } else {
+            CalendarSource(
+                cycles = state.cycles,
+                entries = state.entries,
+                estimateResult = state.estimateResult,
+                biomarkers = state.biomarkers,
+                pillConfig = state.preferences.pillRegimenConfig,
+                firstMonth = null,
+                lastDataMonth = null
+            )
+        }
+    }
+    // Months scroll vertically. Own records: from the earliest data (at least
+    // a year back) to a year ahead, so the estimate stays reachable. Partner:
+    // exactly the shared window, plus the estimate if one was shared.
+    val calendarMonths = remember(state.today, calendarSource) {
         val todayMonth = YearMonth.from(state.today)
-        val earliestData = (state.cycles.map { it.startDate } + state.entries.map { it.date }).minOrNull()
-        val start = listOfNotNull(earliestData?.let(YearMonth::from), todayMonth.minusMonths(12)).min()
-        val end = todayMonth.plusMonths(12)
+        val start: YearMonth
+        val end: YearMonth
+        if (calendarSource.firstMonth != null) {
+            start = minOf(calendarSource.firstMonth, todayMonth)
+            end = maxOf(calendarSource.lastDataMonth ?: todayMonth, todayMonth)
+        } else {
+            val earliestData = (calendarSource.cycles.map { it.startDate } + calendarSource.entries.map { it.date }).minOrNull()
+            start = listOfNotNull(earliestData?.let(YearMonth::from), todayMonth.minusMonths(12)).min()
+            end = todayMonth.plusMonths(12)
+        }
         generateSequence(start) { it.plusMonths(1) }.takeWhile { !it.isAfter(end) }.toList()
     }
     val visibleMonth by remember(calendarMonths) {
@@ -173,7 +226,8 @@ fun JournalScreen(
         }
     }
     var sheetDate by rememberSaveable { mutableStateOf<LocalDate?>(null) }
-    var didInitialCalendarScroll by rememberSaveable { mutableStateOf(false) }
+    // Which calendar (own = false, partner = true) was last scrolled to today.
+    var scrolledForPartner by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var showMonthPicker by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val locale = LocalConfiguration.current.locales[0]
@@ -183,9 +237,9 @@ fun JournalScreen(
         return CalendarMonthsFirstIndex + calendarMonths.indexOf(clamped)
     }
 
-    LaunchedEffect(viewMode) {
-        if (viewMode == JournalViewMode.CALENDAR && !didInitialCalendarScroll) {
-            didInitialCalendarScroll = true
+    LaunchedEffect(viewMode, viewingPartner) {
+        if (viewMode == JournalViewMode.CALENDAR && scrolledForPartner != viewingPartner) {
+            scrolledForPartner = viewingPartner
             listState.scrollToItem(monthItemIndex(YearMonth.from(state.today)), -stickyHeaderOffsetPx)
         }
     }
@@ -241,28 +295,19 @@ fun JournalScreen(
         state.entries.associateBy(DailyEntry::date)
     }
 
-    val pillConfig = remember(state.preferences) { state.preferences.pillRegimenConfig }
 
     val firstDayOfWeek = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
-    val isPillRegimenEnabled = pillConfig.isEnabled && pillConfig.startDate != null
+    val isPillRegimenEnabled = calendarSource.pillConfig.isEnabled && calendarSource.pillConfig.startDate != null
     val biomarkersByDate = remember(state.biomarkers) {
         state.biomarkers.associateBy(BiomarkerObservation::date)
     }
     val temperatureUnit = remember(state.preferences.temperatureUnit) {
         TemperatureUnit.entries.firstOrNull { it.name == state.preferences.temperatureUnit } ?: TemperatureUnit.CELSIUS
     }
-    val sheetDayProjection = remember(sheetDate, state.today, state.cycles, state.entries, state.biomarkers, state.estimateResult, firstDayOfWeek, pillConfig) {
+    val sheetDayProjection = remember(sheetDate, state.today, calendarSource, firstDayOfWeek) {
         sheetDate?.let { date ->
-            MonthCalendarProjectionCalculator.project(
-                targetMonth = YearMonth.from(date),
-                today = state.today,
-                cycles = state.cycles,
-                entries = state.entries,
-                estimateResult = state.estimateResult,
-                biomarkers = state.biomarkers,
-                firstDayOfWeek = firstDayOfWeek,
-                pillRegimenConfig = pillConfig
-            ).weeks.flatten().firstOrNull { it.date == date }
+            calendarSource.project(YearMonth.from(date), state.today, firstDayOfWeek)
+                .weeks.flatten().firstOrNull { it.date == date }
         }
     }
 
@@ -404,6 +449,17 @@ fun JournalScreen(
         if (viewMode == JournalViewMode.CALENDAR) {
             // Index 2
             item(key = "calendar-toolbar") {
+                Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
+                if (partnerInputs != null) {
+                    CalendarOwnerSwitch(
+                        viewingPartner = viewingPartner,
+                        sharedMonths = partnerInputs.months,
+                        onSelect = { partner ->
+                            sheetDate = null
+                            showPartnerCalendar = partner
+                        }
+                    )
+                }
                 CalendarToolbar(
                     visibleMonth = visibleMonth,
                     showJumpToToday = visibleMonth != YearMonth.from(state.today),
@@ -417,6 +473,7 @@ fun JournalScreen(
                         }
                     }
                 )
+                }
             }
 
             // Index 3
@@ -435,17 +492,8 @@ fun JournalScreen(
 
             // Index 5 onward (CalendarMonthsFirstIndex): one item per month
             items(calendarMonths, key = { "month-$it" }) { month ->
-                val projection = remember(month, state.today, state.cycles, state.entries, state.biomarkers, state.estimateResult, firstDayOfWeek, pillConfig) {
-                    MonthCalendarProjectionCalculator.project(
-                        targetMonth = month,
-                        today = state.today,
-                        cycles = state.cycles,
-                        entries = state.entries,
-                        estimateResult = state.estimateResult,
-                        biomarkers = state.biomarkers,
-                        firstDayOfWeek = firstDayOfWeek,
-                        pillRegimenConfig = pillConfig
-                    )
+                val projection = remember(month, state.today, calendarSource, firstDayOfWeek) {
+                    calendarSource.project(month, state.today, firstDayOfWeek)
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -583,7 +631,13 @@ fun JournalScreen(
                     .padding(horizontal = LutealSpacing.md)
                     .padding(bottom = LutealSpacing.lg)
             ) {
-                SelectedDayInspectionCard(
+                if (viewingPartner) {
+                    PartnerDayCard(
+                        date = date,
+                        day = sheetDayProjection,
+                        isToday = date == state.today
+                    )
+                } else SelectedDayInspectionCard(
                     date = date,
                     entry = entriesByDate[date],
                     biomarker = biomarkersByDate[date],
@@ -643,6 +697,119 @@ fun JournalScreen(
                 cycleToDelete = null
             }
         )
+    }
+}
+
+/** Calendar data, either the user's own records or a partner's shared journal. */
+private data class CalendarSource(
+    val cycles: List<Cycle>,
+    val entries: List<DailyEntry>,
+    val estimateResult: CycleEstimateResult,
+    val biomarkers: List<BiomarkerObservation>,
+    val pillConfig: PillRegimenConfig,
+    /** Partner only: first month of the shared window (nothing before it was sent). */
+    val firstMonth: YearMonth?,
+    /** Partner only: last month with shared data or estimate. */
+    val lastDataMonth: YearMonth?
+) {
+    fun project(month: YearMonth, today: LocalDate, firstDayOfWeek: java.time.DayOfWeek) =
+        MonthCalendarProjectionCalculator.project(
+            targetMonth = month,
+            today = today,
+            cycles = cycles,
+            entries = entries,
+            estimateResult = estimateResult,
+            biomarkers = biomarkers,
+            firstDayOfWeek = firstDayOfWeek,
+            pillRegimenConfig = pillConfig
+        )
+}
+
+@Composable
+private fun CalendarOwnerSwitch(
+    viewingPartner: Boolean,
+    sharedMonths: Int,
+    onSelect: (Boolean) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xxs)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
+            FilterChip(
+                selected = !viewingPartner,
+                onClick = { onSelect(false) },
+                label = { Text(stringResource(R.string.journal_owner_mine)) }
+            )
+            FilterChip(
+                selected = viewingPartner,
+                onClick = { onSelect(true) },
+                label = { Text(stringResource(R.string.journal_owner_partner)) }
+            )
+        }
+        if (viewingPartner) {
+            Text(
+                text = stringResource(R.string.journal_partner_readonly_hint, sharedMonths),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Read-only day details for a partner's shared journal; nothing here can be edited. */
+@Composable
+private fun PartnerDayCard(
+    date: LocalDate,
+    day: fr.luteal.core.model.CalendarDayProjection?,
+    isToday: Boolean
+) {
+    val locale = LocalConfiguration.current.locales[0]
+    val entry = day?.entry
+    LutealCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)
+        ) {
+            Text(
+                text = if (isToday) stringResource(R.string.journal_today)
+                else LocalizedDateFormatter.formatFullDate(date, locale),
+                style = MaterialTheme.typography.titleMedium
+            )
+            StatusPill(
+                text = stringResource(R.string.journal_partner_readonly_badge),
+                tone = StatusTone.PRIVATE
+            )
+            val lines = buildList {
+                day?.cycleDayNumber?.let { add(stringResource(R.string.inspection_cycle_day, it)) }
+                entry?.bleedingIntensity
+                    ?.takeIf { it != BleedingIntensity.NONE }
+                    ?.let { add(bleedingLabel(it)) }
+                if (day?.isEstimatedPeriodWindow == true || day?.isEstimatedPeriodTarget == true) {
+                    add(stringResource(R.string.calendar_legend_estimated_period))
+                }
+                entry?.moodLevel?.let { add(stringResource(R.string.today_mood_label, it)) }
+                entry?.energyLevel?.let { add(stringResource(R.string.today_energy_label, it)) }
+                when (val pill = day?.pillStatus) {
+                    is PillDayStatus.ActiveDay -> add(
+                        stringResource(
+                            if (pill.isTakenToday) R.string.inspection_pill_taken_badge
+                            else R.string.inspection_pill_scheduled_badge
+                        )
+                    )
+                    is PillDayStatus.PauseDay -> add(stringResource(R.string.inspection_pill_pause_badge))
+                    else -> Unit
+                }
+            }
+            if (lines.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.journal_partner_day_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                lines.forEach { line ->
+                    Text(text = line, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
     }
 }
 

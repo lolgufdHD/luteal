@@ -35,4 +35,5 @@ interface UserRepository {
     suspend fun setPillTakenOnDate(date: String, taken: Boolean) = Unit
     suspend fun setDuoPartnerPillReminderEnabled(enabled: Boolean) = Unit
     suspend fun setDuoPartnerPillTakenAlertEnabled(enabled: Boolean) = Unit
+    suspend fun setDuoHistoryMonths(months: Int) = Unit
 }

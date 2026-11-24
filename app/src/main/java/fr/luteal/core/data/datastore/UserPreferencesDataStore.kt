@@ -72,7 +72,9 @@ data class UserPreferences(
     val isDuoPartnerPillReminderEnabled: Boolean = false,
     val isDuoPartnerPillTakenAlertEnabled: Boolean = false,
     val duoPartnerSharedPillJson: String? = null,
-    val duoPartnerNotifiedTakenDate: String? = null
+    val duoPartnerNotifiedTakenDate: String? = null,
+    /** Partner side: last received [fr.luteal.core.model.SharedHistory], as JSON. */
+    val duoPartnerSharedHistoryJson: String? = null
 ) {
     /** Contexts the user declared during onboarding. */
     val declaredContexts: Set<TrackingContext>
@@ -141,6 +143,12 @@ class UserPreferencesDataStore @Inject constructor(
         val SHARE_ENERGY = booleanPreferencesKey("share_energy")
         val SHARE_SUPPORT_REQUESTS = booleanPreferencesKey("share_support_requests")
         val SHARE_PILL_STATUS = booleanPreferencesKey("share_pill_status")
+        val SHARE_HISTORY_FLOW = booleanPreferencesKey("share_history_flow")
+        val SHARE_HISTORY_ESTIMATE = booleanPreferencesKey("share_history_estimate")
+        val SHARE_HISTORY_LEVELS = booleanPreferencesKey("share_history_levels")
+        val SHARE_HISTORY_PILL = booleanPreferencesKey("share_history_pill")
+        val SHARE_HISTORY_MONTHS = intPreferencesKey("share_history_months")
+        val DUO_PARTNER_SHARED_HISTORY_JSON = stringPreferencesKey("duo_partner_shared_history_json")
         val DUO_PARTNER_PILL_REMINDER_ENABLED = booleanPreferencesKey("duo_partner_pill_reminder_enabled")
         val DUO_PARTNER_PILL_TAKEN_ALERT_ENABLED = booleanPreferencesKey("duo_partner_pill_taken_alert_enabled")
         val DUO_PARTNER_SHARED_PILL_JSON = stringPreferencesKey("duo_partner_shared_pill_json")
@@ -200,7 +208,14 @@ class UserPreferencesDataStore @Inject constructor(
                     shareMood = preferences[SHARE_MOOD] ?: false,
                     shareEnergy = preferences[SHARE_ENERGY] ?: false,
                     shareSupportRequests = preferences[SHARE_SUPPORT_REQUESTS] ?: false,
-                    sharePillStatus = preferences[SHARE_PILL_STATUS] ?: false
+                    sharePillStatus = preferences[SHARE_PILL_STATUS] ?: false,
+                    shareHistoryFlow = preferences[SHARE_HISTORY_FLOW] ?: false,
+                    shareHistoryEstimate = preferences[SHARE_HISTORY_ESTIMATE] ?: false,
+                    shareHistoryLevels = preferences[SHARE_HISTORY_LEVELS] ?: false,
+                    shareHistoryPill = preferences[SHARE_HISTORY_PILL] ?: false,
+                    historyMonths = DuoSharingPreferences.normalizeHistoryMonths(
+                        preferences[SHARE_HISTORY_MONTHS] ?: DuoSharingPreferences.DEFAULT_HISTORY_MONTHS
+                    )
                 ),
                 isAppLockEnabled = preferences[IS_APP_LOCK_ENABLED] ?: false,
                 isBiometricEnabled = preferences[IS_BIOMETRIC_ENABLED] ?: false,
@@ -230,7 +245,8 @@ class UserPreferencesDataStore @Inject constructor(
                 isDuoPartnerPillReminderEnabled = preferences[DUO_PARTNER_PILL_REMINDER_ENABLED] ?: false,
                 isDuoPartnerPillTakenAlertEnabled = preferences[DUO_PARTNER_PILL_TAKEN_ALERT_ENABLED] ?: false,
                 duoPartnerSharedPillJson = preferences[DUO_PARTNER_SHARED_PILL_JSON],
-                duoPartnerNotifiedTakenDate = preferences[DUO_PARTNER_NOTIFIED_TAKEN_DATE]
+                duoPartnerNotifiedTakenDate = preferences[DUO_PARTNER_NOTIFIED_TAKEN_DATE],
+                duoPartnerSharedHistoryJson = preferences[DUO_PARTNER_SHARED_HISTORY_JSON]
             )
         }
 
@@ -349,6 +365,13 @@ class UserPreferencesDataStore @Inject constructor(
         if (json == null) preferences.remove(DUO_PARTNER_SHARED_PILL_JSON)
         else preferences[DUO_PARTNER_SHARED_PILL_JSON] = json
     }
+    suspend fun setDuoHistoryMonths(months: Int) = edit {
+        it[SHARE_HISTORY_MONTHS] = DuoSharingPreferences.normalizeHistoryMonths(months)
+    }
+    suspend fun setDuoPartnerSharedHistoryJson(json: String?) = edit { preferences ->
+        if (json == null) preferences.remove(DUO_PARTNER_SHARED_HISTORY_JSON)
+        else preferences[DUO_PARTNER_SHARED_HISTORY_JSON] = json
+    }
     suspend fun setDuoPartnerNotifiedTakenDate(date: String?) = edit { preferences ->
         if (date == null) preferences.remove(DUO_PARTNER_NOTIFIED_TAKEN_DATE)
         else preferences[DUO_PARTNER_NOTIFIED_TAKEN_DATE] = date
@@ -366,5 +389,9 @@ class UserPreferencesDataStore @Inject constructor(
         DuoSharingField.ENERGY -> SHARE_ENERGY
         DuoSharingField.SUPPORT_REQUESTS -> SHARE_SUPPORT_REQUESTS
         DuoSharingField.PILL_STATUS -> SHARE_PILL_STATUS
+        DuoSharingField.HISTORY_FLOW -> SHARE_HISTORY_FLOW
+        DuoSharingField.HISTORY_ESTIMATE -> SHARE_HISTORY_ESTIMATE
+        DuoSharingField.HISTORY_LEVELS -> SHARE_HISTORY_LEVELS
+        DuoSharingField.HISTORY_PILL -> SHARE_HISTORY_PILL
     }
 }

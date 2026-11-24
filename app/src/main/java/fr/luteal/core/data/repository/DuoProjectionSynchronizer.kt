@@ -9,6 +9,8 @@ import fr.luteal.core.model.DuoProjection
 import fr.luteal.core.model.PillDayStatus
 import fr.luteal.core.model.PillRegimenCalculator
 import fr.luteal.core.model.SharedEstimate
+import fr.luteal.core.model.SharedHistory
+import fr.luteal.core.model.SharedHistoryMapper
 import fr.luteal.core.model.SharedLevel
 import fr.luteal.core.model.SharedPillStatus
 import fr.luteal.core.model.SyncMode
@@ -92,13 +94,19 @@ class DuoProjectionSynchronizer @Inject constructor(
         val isPillRegimenActive =
             PillRegimenCalculator.evaluate(preferences.pillRegimenConfig, today) !is PillDayStatus.Disabled
 
-        val estimate = if (grants[GrantField.PERIOD_ESTIMATE] == true && !isPillRegimenActive) {
+        // Same rule as the current-estimate grant: under a pill regimen the
+        // bleeding is a withdrawal bleed, so no cycle estimate is shared.
+        val nextPeriodEstimate = if (!isPillRegimenActive) {
             CycleEstimateCalculator.estimateNextPeriod(
                 cycles = cycles,
                 ageBand = AgeBand.fromId(preferences.ageBand),
                 hasTimingContext = preferences.hasTimingContext,
                 declaredContexts = preferences.declaredContexts
-            )?.let {
+            )
+        } else null
+
+        val estimate = if (grants[GrantField.PERIOD_ESTIMATE] == true) {
+            nextPeriodEstimate?.let {
                 SharedEstimate(
                     windowStart = it.earliestDate.toString(),
                     windowEnd = it.latestDate.toString(),
@@ -109,7 +117,8 @@ class DuoProjectionSynchronizer @Inject constructor(
             }
         } else null
 
-        val latest = dailyEntryRepository.observeEntries().first()
+        val allEntries = dailyEntryRepository.observeEntries().first()
+        val latest = allEntries
             .filter { !it.date.isAfter(today) }
             .maxByOrNull { it.date }
 
@@ -123,13 +132,28 @@ class DuoProjectionSynchronizer @Inject constructor(
 
         val pillStatus = composeLocalPillStatus(today, preferences)
 
+        val history = SharedHistoryMapper.compose(
+            today = today,
+            sharing = preferences.duoSharing,
+            cycles = cycles,
+            entries = allEntries,
+            pillConfig = preferences.pillRegimenConfig,
+            estimate = nextPeriodEstimate
+        )
+
         return DuoProjection(
             cycleDay = cycleDay,
             periodEstimate = estimate,
             mood = mood,
             energy = energy,
-            pillStatus = pillStatus
+            pillStatus = pillStatus,
+            history = history
         )
+    }
+
+    /** Partner side: drops the stored shared journal (e.g. after the link ends). */
+    suspend fun clearPartnerHistory() {
+        userPreferencesDataStore.setDuoPartnerSharedHistoryJson(null)
     }
 
     /**
@@ -162,6 +186,15 @@ class DuoProjectionSynchronizer @Inject constructor(
         val projection = (decoded as? DuoProjectionDecodeResult.Available)?.projection
         val sharedPill = projection?.pillStatus
         val prefs = userPreferencesDataStore.userPreferencesFlow.first()
+
+        // Shared journal: keep the last received copy so the partner's Journal
+        // tab can render it offline. A projection without history (grants
+        // revoked) clears it; an undecodable one leaves the last copy alone.
+        if (decoded is DuoProjectionDecodeResult.Available || decoded is DuoProjectionDecodeResult.NoPayload) {
+            userPreferencesDataStore.setDuoPartnerSharedHistoryJson(
+                projection?.history?.let { ContractJson.encodeToString(SharedHistory.serializer(), it) }
+            )
+        }
 
         if (sharedPill == null) {
             userPreferencesDataStore.setDuoPartnerSharedPillJson(null)

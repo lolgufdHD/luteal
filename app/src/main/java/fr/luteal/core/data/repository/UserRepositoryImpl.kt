@@ -87,6 +87,10 @@ class UserRepositoryImpl @Inject constructor(
         userPreferencesDataStore.setDuoPartnerPillTakenAlertEnabled(enabled)
     }
 
+    override suspend fun setDuoHistoryMonths(months: Int) {
+        userPreferencesDataStore.setDuoHistoryMonths(months)
+    }
+
     override suspend fun setCouplePairing(pairingCode: String?, partnerName: String?) {
         userPreferencesDataStore.setCouplePairingCode(pairingCode)
         val currentProfile = userProfileDao.getUserProfile().firstOrNull()
