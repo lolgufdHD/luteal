@@ -46,11 +46,26 @@ jobs:
           ./scripts/check-string-parity.py
           python3 ./scripts/check-fastlane-metadata.py
 
+      # Robolectric downloads its android-all jars itself at test time (not
+      # through Gradle) into ~/.m2/repository. Caching them means a throttled
+      # Maven Central only matters until one run has succeeded.
+      - name: Cache Robolectric android-all jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: robolectric-
+
       - name: Build, lint, and test
-        # Maven Central answers large downloads (e.g. Robolectric's native
-        # runtime jar) with HTTP 429 when the runner pool is busy. Gradle's
-        # default retries (3, starting at 1 s) give up too fast; back off longer.
-        run: >-
-          ./gradlew assembleDebug lintDebug testDebugUnitTest
-          -Dorg.gradle.internal.repository.max.retries=6
-          -Dorg.gradle.internal.repository.initial.backoff=5000
+        # Maven Central answers large downloads with HTTP 429 when the runner
+        # pool is busy. Gradle's default retries (3, starting at 1 s) give up
+        # too fast, so back off longer. Robolectric's own fetcher ignores those
+        # settings, so the unit tests get one delayed retry on top.
+        run: |
+          GRADLE_RETRY="-Dorg.gradle.internal.repository.max.retries=6 -Dorg.gradle.internal.repository.initial.backoff=5000"
+          ./gradlew assembleDebug lintDebug $GRADLE_RETRY
+          ./gradlew testDebugUnitTest $GRADLE_RETRY || {
+            echo "::warning::Unit tests failed; retrying once in 90 s in case Robolectric downloads were throttled."
+            sleep 90
+            ./gradlew testDebugUnitTest $GRADLE_RETRY
+          }

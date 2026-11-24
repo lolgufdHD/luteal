@@ -173,19 +173,20 @@ fun JournalScreen(
     var showPartnerCalendar by rememberSaveable {
         mutableStateOf(state.cycles.isEmpty() && state.entries.isEmpty())
     }
-    val viewingPartner = showPartnerCalendar && partnerInputs != null
-    val calendarSource = remember(viewingPartner, partnerInputs, state.cycles, state.entries, state.estimateResult, state.biomarkers, state.preferences) {
-        if (viewingPartner && partnerInputs != null) {
+    val activePartnerInputs = partnerInputs?.takeIf { showPartnerCalendar }
+    val viewingPartner = activePartnerInputs != null
+    val calendarSource = remember(activePartnerInputs, state.cycles, state.entries, state.estimateResult, state.biomarkers, state.preferences) {
+        if (activePartnerInputs != null) {
             CalendarSource(
-                cycles = partnerInputs.cycles,
-                entries = partnerInputs.entries,
-                estimateResult = partnerInputs.estimateResult,
+                cycles = activePartnerInputs.cycles,
+                entries = activePartnerInputs.entries,
+                estimateResult = activePartnerInputs.estimateResult,
                 biomarkers = emptyList(),
-                pillConfig = partnerInputs.pillConfig,
-                firstMonth = YearMonth.from(partnerInputs.from),
+                pillConfig = activePartnerInputs.pillConfig,
+                firstMonth = YearMonth.from(activePartnerInputs.from),
                 lastDataMonth = listOfNotNull(
-                    YearMonth.from(partnerInputs.to),
-                    (partnerInputs.estimateResult as? CycleEstimateResult.Available)
+                    YearMonth.from(activePartnerInputs.to),
+                    (activePartnerInputs.estimateResult as? CycleEstimateResult.Available)
                         ?.estimate?.latestDate?.let(YearMonth::from)
                 ).max()
             )
