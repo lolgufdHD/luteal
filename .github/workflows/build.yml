@@ -47,4 +47,10 @@ jobs:
           python3 ./scripts/check-fastlane-metadata.py
 
       - name: Build, lint, and test
-        run: ./gradlew assembleDebug lintDebug testDebugUnitTest
+        # Maven Central answers large downloads (e.g. Robolectric's native
+        # runtime jar) with HTTP 429 when the runner pool is busy. Gradle's
+        # default retries (3, starting at 1 s) give up too fast; back off longer.
+        run: >-
+          ./gradlew assembleDebug lintDebug testDebugUnitTest
+          -Dorg.gradle.internal.repository.max.retries=6
+          -Dorg.gradle.internal.repository.initial.backoff=5000
