@@ -250,8 +250,12 @@ class LutealScreensTest {
             }
         }
 
-        composeRule.onNodeWithText(string(R.string.calendar_view_calendar)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.calendar_legend_title)).assertIsDisplayed()
+        // The calendar opens scrolled to the current month; tapping today's
+        // tile opens the day sheet, whose edit action opens the entry.
+        composeRule.onNodeWithContentDescription(
+            string(R.string.calendar_today_button),
+            substring = true
+        ).performClick()
         composeRule.onNodeWithText(string(R.string.action_edit_today)).performClick()
         assertEquals(today, openedDate)
     }

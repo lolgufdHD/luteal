@@ -19,8 +19,15 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.platform.LocalDensity
+import fr.luteal.core.designsystem.component.CalendarWeekdayHeader
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.rounded.Description
@@ -131,6 +138,7 @@ enum class JournalViewMode {
     PATTERNS
 }
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun JournalScreen(
     state: LutealUiState,
@@ -145,17 +153,42 @@ fun JournalScreen(
 ) {
     val context = LocalContext.current
     var viewMode by rememberSaveable { mutableStateOf(initialViewMode) }
-    val baseMonth = remember { YearMonth.from(state.today) }
-    val pagerState = rememberPagerState(initialPage = 1200, pageCount = { 2400 })
-    val pagerMonth = remember(pagerState.currentPage) { baseMonth.plusMonths((pagerState.currentPage - 1200).toLong()) }
-    var currentMonth by rememberSaveable { mutableStateOf(YearMonth.from(state.today)) }
-    LaunchedEffect(pagerState.currentPage) {
-        currentMonth = pagerMonth
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val stickyHeaderOffsetPx = with(density) { CalendarStickyHeaderHeight.roundToPx() }
+    // Months scroll vertically: from the earliest recorded data (at least a
+    // year back) to a year ahead, so the estimate stays reachable.
+    val calendarMonths = remember(state.today, state.cycles, state.entries) {
+        val todayMonth = YearMonth.from(state.today)
+        val earliestData = (state.cycles.map { it.startDate } + state.entries.map { it.date }).minOrNull()
+        val start = listOfNotNull(earliestData?.let(YearMonth::from), todayMonth.minusMonths(12)).min()
+        val end = todayMonth.plusMonths(12)
+        generateSequence(start) { it.plusMonths(1) }.takeWhile { !it.isAfter(end) }.toList()
     }
-    var selectedDate by rememberSaveable { mutableStateOf(state.today) }
+    val visibleMonth by remember(calendarMonths) {
+        derivedStateOf {
+            val idx = (listState.firstVisibleItemIndex - CalendarMonthsFirstIndex)
+                .coerceIn(0, calendarMonths.lastIndex)
+            calendarMonths[idx]
+        }
+    }
+    var sheetDate by rememberSaveable { mutableStateOf<LocalDate?>(null) }
+    var didInitialCalendarScroll by rememberSaveable { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val locale = LocalConfiguration.current.locales[0]
+
+    fun monthItemIndex(month: YearMonth): Int {
+        val clamped = month.coerceIn(calendarMonths.first(), calendarMonths.last())
+        return CalendarMonthsFirstIndex + calendarMonths.indexOf(clamped)
+    }
+
+    LaunchedEffect(viewMode) {
+        if (viewMode == JournalViewMode.CALENDAR && !didInitialCalendarScroll) {
+            didInitialCalendarScroll = true
+            listState.scrollToItem(monthItemIndex(YearMonth.from(state.today)), -stickyHeaderOffsetPx)
+        }
+    }
     var showDatePicker by remember { mutableStateOf(false) }
     var cycleToEdit by remember { mutableStateOf<Cycle?>(null) }
     var cycleToDelete by remember { mutableStateOf<Cycle?>(null) }
@@ -210,56 +243,44 @@ fun JournalScreen(
 
     val pillConfig = remember(state.preferences) { state.preferences.pillRegimenConfig }
 
-    val calendarProjection = remember(currentMonth, state.today, state.cycles, state.entries, state.biomarkers, state.estimateResult, locale, pillConfig) {
-        MonthCalendarProjectionCalculator.project(
-            targetMonth = currentMonth,
-            today = state.today,
-            cycles = state.cycles,
-            entries = state.entries,
-            estimateResult = state.estimateResult,
-            biomarkers = state.biomarkers,
-            firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek,
-            pillRegimenConfig = pillConfig
-        )
-    }
+    val firstDayOfWeek = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
+    val isPillRegimenEnabled = pillConfig.isEnabled && pillConfig.startDate != null
     val biomarkersByDate = remember(state.biomarkers) {
         state.biomarkers.associateBy(BiomarkerObservation::date)
     }
     val temperatureUnit = remember(state.preferences.temperatureUnit) {
         TemperatureUnit.entries.firstOrNull { it.name == state.preferences.temperatureUnit } ?: TemperatureUnit.CELSIUS
     }
-    val selectedMonth = remember(selectedDate) { YearMonth.from(selectedDate) }
-    val selectedDayProjection = remember(selectedDate, selectedMonth, currentMonth, calendarProjection, state.cycles, state.entries, state.biomarkers, state.estimateResult, locale, pillConfig) {
-        if (selectedMonth == currentMonth) {
-            calendarProjection.weeks.flatten().firstOrNull { it.date == selectedDate }
-        } else {
+    val sheetDayProjection = remember(sheetDate, state.today, state.cycles, state.entries, state.biomarkers, state.estimateResult, firstDayOfWeek, pillConfig) {
+        sheetDate?.let { date ->
             MonthCalendarProjectionCalculator.project(
-                targetMonth = selectedMonth,
+                targetMonth = YearMonth.from(date),
                 today = state.today,
                 cycles = state.cycles,
                 entries = state.entries,
                 estimateResult = state.estimateResult,
                 biomarkers = state.biomarkers,
-                firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek,
+                firstDayOfWeek = firstDayOfWeek,
                 pillRegimenConfig = pillConfig
-            ).weeks.flatten().firstOrNull { it.date == selectedDate }
+            ).weeks.flatten().firstOrNull { it.date == date }
         }
     }
 
     if (showMonthPicker) {
         MonthYearPickerDialog(
-            currentMonth = currentMonth,
+            currentMonth = visibleMonth,
             onDismiss = { showMonthPicker = false },
             onSelectMonth = { target ->
                 showMonthPicker = false
-                val page = 1200 + ChronoUnit.MONTHS.between(baseMonth, target).toInt()
-                coroutineScope.launch { pagerState.animateScrollToPage(page) }
+                coroutineScope.launch {
+                    listState.animateScrollToItem(monthItemIndex(target), -stickyHeaderOffsetPx)
+                }
             }
         )
     }
 
-
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             horizontal = LutealSpacing.md,
@@ -381,112 +402,68 @@ fun JournalScreen(
         }
 
         if (viewMode == JournalViewMode.CALENDAR) {
-            item {
-                MonthNavigationBar(
-                    currentMonth = currentMonth,
-                    isCurrentMonthToday = currentMonth == YearMonth.from(state.today),
-                    onPreviousMonth = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                        }
-                    },
-                    onNextMonth = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                        }
-                    },
+            // Index 2
+            item(key = "calendar-toolbar") {
+                CalendarToolbar(
+                    visibleMonth = visibleMonth,
+                    showJumpToToday = visibleMonth != YearMonth.from(state.today),
+                    onTitleClick = { showMonthPicker = true },
                     onJumpToToday = {
-                        val todayMonth = YearMonth.from(state.today)
-                        val targetPage = 1200 + ChronoUnit.MONTHS.between(baseMonth, todayMonth).toInt()
                         coroutineScope.launch {
-                            pagerState.animateScrollToPage(targetPage)
+                            listState.animateScrollToItem(
+                                monthItemIndex(YearMonth.from(state.today)),
+                                -stickyHeaderOffsetPx
+                            )
                         }
-                        selectedDate = state.today
-                    },
-                    onTitleClick = { showMonthPicker = true }
+                    }
                 )
             }
 
-            if (calendarProjection.recordedPeriodDaysCount > 0) {
-                item {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                    ) {
-                        Text(
-                            text = pluralStringResource(
-                                R.plurals.calendar_month_summary_period_days,
-                                calendarProjection.recordedPeriodDaysCount,
-                                calendarProjection.recordedPeriodDaysCount
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = LutealSpacing.sm, vertical = LutealSpacing.xs)
-                        )
-                    }
-                }
+            // Index 3
+            item(key = "calendar-legend") {
+                CalendarLegendCard(showPillLegend = isPillRegimenEnabled)
             }
 
-            item {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth()
-                ) { page ->
-                    val pageMonth = baseMonth.plusMonths((page - 1200).toLong())
-                    val pageProjection = remember(pageMonth, state.today, state.cycles, state.entries, state.biomarkers, state.estimateResult, locale, pillConfig) {
-                        MonthCalendarProjectionCalculator.project(
-                            targetMonth = pageMonth,
-                            today = state.today,
-                            cycles = state.cycles,
-                            entries = state.entries,
-                            estimateResult = state.estimateResult,
-                            biomarkers = state.biomarkers,
-                            firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek,
-                            pillRegimenConfig = pillConfig
-                        )
-                    }
-                    MonthCalendarGrid(
-                        projection = pageProjection,
-                        selectedDate = selectedDate,
-                        onSelectDate = { date ->
-                            selectedDate = date
-                            val targetMonth = YearMonth.from(date)
-                            if (targetMonth != pageMonth) {
-                                val targetPage = 1200 + ChronoUnit.MONTHS.between(baseMonth, targetMonth).toInt()
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(targetPage)
-                                }
-                            }
-                        }
+            // Index 4: weekday row stays pinned while the months scroll under it
+            stickyHeader(key = "calendar-weekdays") {
+                CalendarWeekdayHeader(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.background)
+                        .height(CalendarStickyHeaderHeight)
+                )
+            }
+
+            // Index 5 onward (CalendarMonthsFirstIndex): one item per month
+            items(calendarMonths, key = { "month-$it" }) { month ->
+                val projection = remember(month, state.today, state.cycles, state.entries, state.biomarkers, state.estimateResult, firstDayOfWeek, pillConfig) {
+                    MonthCalendarProjectionCalculator.project(
+                        targetMonth = month,
+                        today = state.today,
+                        cycles = state.cycles,
+                        entries = state.entries,
+                        estimateResult = state.estimateResult,
+                        biomarkers = state.biomarkers,
+                        firstDayOfWeek = firstDayOfWeek,
+                        pillRegimenConfig = pillConfig
                     )
                 }
-            }
-
-            item {
-                CalendarLegendCard(showPillLegend = calendarProjection.isPillRegimenEnabled)
-            }
-
-            val cycleStart = state.cycles.firstOrNull { it.startDate == selectedDate }
-            val selectedCycle = state.cycles.firstOrNull { it.startDate <= selectedDate && (it.endDate == null || it.endDate >= selectedDate) }
-            item {
-                SelectedDayInspectionCard(
-                    date = selectedDate,
-                    entry = entriesByDate[selectedDate],
-                    biomarker = biomarkersByDate[selectedDate],
-                    cycle = selectedCycle,
-                    cycleDayNumber = selectedDayProjection?.cycleDayNumber,
-                    phase = selectedDayProjection?.cyclePhase,
-                    phaseCertainty = selectedDayProjection?.phaseCertainty,
-                    pillStatus = selectedDayProjection?.pillStatus ?: PillDayStatus.Disabled,
-                    isToday = selectedDate == state.today,
-                    isFuture = selectedDate.isAfter(state.today),
-                    cycleStart = cycleStart,
-                    temperatureUnit = temperatureUnit,
-                    onEditCycle = { cycleToEdit = it },
-                    onDeleteCycle = { cycleToDelete = it },
-                    onEditOrAdd = { onSelectDate(selectedDate) },
-                    onTogglePillTaken = { taken -> onTogglePillTakenOnDate(selectedDate, taken) }
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Text(
+                        text = LocalizedDateFormatter.formatMonthYear(month.atDay(1), locale),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    MonthCalendarGrid(
+                        projection = projection,
+                        selectedDate = sheetDate,
+                        onSelectDate = { date -> sheetDate = date },
+                        showWeekdayHeader = false
+                    )
+                }
             }
         } else if (viewMode == JournalViewMode.TIMELINE) {
             if (recordedEntries.isEmpty()) {
@@ -589,6 +566,51 @@ fun JournalScreen(
         }
     }
 
+    sheetDate?.let { date ->
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val cycleStart = state.cycles.firstOrNull { it.startDate == date }
+        val selectedCycle = state.cycles.firstOrNull {
+            it.startDate <= date && (it.endDate == null || it.endDate >= date)
+        }
+        ModalBottomSheet(
+            onDismissRequest = { sheetDate = null },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = LutealSpacing.md)
+                    .padding(bottom = LutealSpacing.lg)
+            ) {
+                SelectedDayInspectionCard(
+                    date = date,
+                    entry = entriesByDate[date],
+                    biomarker = biomarkersByDate[date],
+                    cycle = selectedCycle,
+                    cycleDayNumber = sheetDayProjection?.cycleDayNumber,
+                    phase = sheetDayProjection?.cyclePhase,
+                    phaseCertainty = sheetDayProjection?.phaseCertainty,
+                    pillStatus = sheetDayProjection?.pillStatus ?: PillDayStatus.Disabled,
+                    isToday = date == state.today,
+                    isFuture = date.isAfter(state.today),
+                    cycleStart = cycleStart,
+                    temperatureUnit = temperatureUnit,
+                    onEditCycle = { cycleToEdit = it },
+                    onDeleteCycle = {
+                        sheetDate = null
+                        cycleToDelete = it
+                    },
+                    onEditOrAdd = {
+                        sheetDate = null
+                        onSelectDate(date)
+                    },
+                    onTogglePillTaken = { taken -> onTogglePillTakenOnDate(date, taken) }
+                )
+            }
+        }
+    }
+
     if (showDatePicker) {
         JournalDatePickerDialog(
             today = state.today,
@@ -624,14 +646,16 @@ fun JournalScreen(
     }
 }
 
+/** Position of the first month in the calendar LazyColumn (header, tabs, toolbar, legend, weekday row come first). */
+private const val CalendarMonthsFirstIndex = 5
+private val CalendarStickyHeaderHeight = 32.dp
+
 @Composable
-private fun MonthNavigationBar(
-    currentMonth: YearMonth,
-    isCurrentMonthToday: Boolean,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
+private fun CalendarToolbar(
+    visibleMonth: YearMonth,
+    showJumpToToday: Boolean,
+    onTitleClick: () -> Unit,
     onJumpToToday: () -> Unit,
-    onTitleClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val locale = LocalConfiguration.current.locales[0]
@@ -640,30 +664,17 @@ private fun MonthNavigationBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
-            onClick = onPreviousMonth,
-            modifier = Modifier.size(48.dp)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                contentDescription = stringResource(R.string.calendar_previous_month)
-            )
-        }
-
         Row(
             modifier = Modifier
-                .weight(1f)
                 .clip(MaterialTheme.shapes.small)
                 .clickable(onClick = onTitleClick)
                 .padding(vertical = LutealSpacing.xs, horizontal = LutealSpacing.sm),
-            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = LocalizedDateFormatter.formatMonthYear(currentMonth.atDay(1), locale),
+                text = LocalizedDateFormatter.formatMonthYear(visibleMonth.atDay(1), locale),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
@@ -673,31 +684,15 @@ private fun MonthNavigationBar(
                 modifier = Modifier.size(20.dp)
             )
         }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            if (!isCurrentMonthToday) {
-                IconButton(
-                    onClick = onJumpToToday,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Today,
-                        contentDescription = stringResource(R.string.calendar_today_button),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            IconButton(
-                onClick = onNextMonth,
-                modifier = Modifier.size(48.dp)
-            ) {
+        if (showJumpToToday) {
+            TextButton(onClick = onJumpToToday) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = stringResource(R.string.calendar_next_month)
+                    imageVector = Icons.Rounded.Today,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
                 )
+                Spacer(modifier = Modifier.width(LutealSpacing.xs))
+                Text(text = stringResource(R.string.calendar_today_button))
             }
         }
     }

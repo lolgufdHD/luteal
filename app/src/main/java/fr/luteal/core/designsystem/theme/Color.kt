@@ -51,6 +51,46 @@ val DarkPhaseColors = PhaseColors(
 
 val LocalPhaseColors = staticCompositionLocalOf { LightPhaseColors }
 
+/** A flow-intensity fill and the text colour that stays legible on top of it. */
+@Immutable
+data class FlowTone(
+    val fill: Color,
+    val onFill: Color
+)
+
+/**
+ * Recorded flow, encoded as "the redder, the heavier". Intensity is always
+ * also stated in text (accessibility labels, day sheet), so colour is never
+ * the only carrier of the value.
+ */
+@Immutable
+data class FlowColors(
+    val spotting: Color,
+    val light: FlowTone,
+    val medium: FlowTone,
+    val heavy: FlowTone,
+    /** Outline/dot colour for estimated (not recorded) period days. */
+    val estimated: Color
+)
+
+val LightFlowColors = FlowColors(
+    spotting = Color(0xFFD9736F),
+    light = FlowTone(Color(0xFFF4A39E), Color(0xFF4A1012)),
+    medium = FlowTone(Color(0xFFC62828), Color(0xFFFFFFFF)),
+    heavy = FlowTone(Color(0xFF7F0F16), Color(0xFFFFFFFF)),
+    estimated = Color(0xFFC2504F)
+)
+
+val DarkFlowColors = FlowColors(
+    spotting = Color(0xFFFF7A78),
+    light = FlowTone(Color(0xFFFF8A85), Color(0xFF3D0A0C)),
+    medium = FlowTone(Color(0xFFD32F2F), Color(0xFFFFFFFF)),
+    heavy = FlowTone(Color(0xFF9A1820), Color(0xFFFFFFFF)),
+    estimated = Color(0xFFFF8A85)
+)
+
+val LocalFlowColors = staticCompositionLocalOf { LightFlowColors }
+
 val LightColorScheme = lightColorScheme(
     primary = Evergreen40,
     onPrimary = Color(0xFFF3FFF9),

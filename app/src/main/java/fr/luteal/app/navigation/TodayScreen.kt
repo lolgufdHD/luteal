@@ -43,11 +43,19 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
 import fr.luteal.app.LutealUiState
 import fr.luteal.app.R
 import fr.luteal.core.common.LocalizedDateFormatter
 import fr.luteal.core.designsystem.component.CycleDayRing
+import fr.luteal.core.designsystem.component.CyclePeriodRing
+import java.time.LocalDate
 import fr.luteal.core.designsystem.component.LutealCard
 import fr.luteal.core.designsystem.component.LutealCardEmphasis
 import fr.luteal.core.designsystem.component.LutealPrimaryButton
@@ -142,10 +150,143 @@ fun TodayScreen(
     }
 }
 
+/** What the cycle ring draws; null when there is no estimate to size the ring with. */
+private data class CycleRingModel(
+    val length: Int,
+    val dayOfCycle: Int,
+    val flowByDay: Map<Int, BleedingIntensity>,
+    val estimatedDays: Set<Int>
+)
+
+private fun buildCycleRingModel(state: LutealUiState): CycleRingModel? {
+    val cycle = state.currentCycle ?: return null
+    val day = state.dayOfCycle ?: return null
+    val estimate = state.estimate ?: return null
+    val daysToNext = ChronoUnit.DAYS.between(cycle.startDate, estimate.centralDate).toInt()
+    val length = maxOf(daysToNext, day)
+    if (length !in 1..120) return null
+
+    fun recordedIndex(date: LocalDate): Int? {
+        val idx = ChronoUnit.DAYS.between(cycle.startDate, date).toInt() + 1
+        return idx.takeIf { it in 1..day }
+    }
+
+    val flow = mutableMapOf<Int, BleedingIntensity>()
+    cycle.periodDays.forEach { pd -> recordedIndex(pd.date)?.let { flow[it] = pd.bleedingIntensity } }
+    state.entries.forEach { entry ->
+        val intensity = entry.bleedingIntensity ?: return@forEach
+        recordedIndex(entry.date)?.let { flow[it] = intensity }
+    }
+    flow.values.removeAll { it == BleedingIntensity.NONE }
+
+    val window = estimate.earliestDate..estimate.latestDate
+    val estimated = (1..length).filter { d ->
+        val date = cycle.startDate.plusDays((d - 1).toLong())
+        date.isAfter(state.today) && date in window && d !in flow
+    }.toSet()
+
+    return CycleRingModel(length, day, flow, estimated)
+}
+
+@Composable
+private fun CycleRingHero(state: LutealUiState, model: CycleRingModel) {
+    val locale = LocalConfiguration.current.locales[0]
+    val estimate = state.estimate ?: return
+    val todayHasFlow = state.todayEntry?.bleedingIntensity?.isPeriodFlow() == true
+    val daysUntilCentral = ChronoUnit.DAYS.between(state.today, estimate.centralDate).toInt()
+    val daysPastWindow = ChronoUnit.DAYS.between(estimate.latestDate, state.today).toInt()
+
+    val todayWord = stringResource(R.string.today_title)
+    val todayLine = buildAnnotatedString {
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(todayWord) }
+        append(", ")
+        append(LocalizedDateFormatter.formatShortDate(state.today, locale))
+    }
+    val headline = when {
+        todayHasFlow -> stringResource(R.string.cycle_ring_period_day, model.dayOfCycle)
+        daysUntilCentral > 0 -> stringResource(
+            R.string.cycle_ring_next_period,
+            LocalizedDateFormatter.formatShortDate(estimate.centralDate, locale)
+        )
+        daysPastWindow > 0 -> pluralStringResource(
+            R.plurals.estimate_past_window,
+            daysPastWindow,
+            daysPastWindow
+        )
+        else -> stringResource(R.string.estimate_in_progress)
+    }
+    val support = if (daysPastWindow <= 0) {
+        stringResource(
+            R.string.estimate_window_subhead,
+            LocalizedDateFormatter.formatShortDate(estimate.earliestDate, locale),
+            LocalizedDateFormatter.formatShortDate(estimate.latestDate, locale)
+        )
+    } else {
+        null
+    }
+    val a11y = listOfNotNull(
+        stringResource(R.string.cycle_day, model.dayOfCycle),
+        headline,
+        support
+    ).joinToString(". ")
+
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        CyclePeriodRing(
+            ringLength = model.length,
+            dayOfCycle = model.dayOfCycle,
+            flowByDay = model.flowByDay,
+            estimatedDays = model.estimatedDays,
+            dayLabel = stringResource(R.string.cycle_ring_day_label),
+            accessibleLabel = a11y,
+            modifier = Modifier.widthIn(max = 360.dp)
+        ) {
+            Text(
+                text = todayLine,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = headline,
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+            support?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CycleHeroCard(state: LutealUiState) {
     val cycle = state.currentCycle
     val locale = LocalConfiguration.current.locales[0]
+    val ringModel = remember(state) { buildCycleRingModel(state) }
+    if (cycle != null && ringModel != null) {
+        CycleRingHero(state = state, model = ringModel)
+        LutealCard(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.md)) {
+                CurrentPhaseSummary(
+                    result = state.currentPhase,
+                    isPillRegimenActive = state.pillStatus !is PillDayStatus.Disabled
+                )
+                state.todayEntry?.bleedingIntensity?.let { intensity ->
+                    Text(
+                        text = stringResource(R.string.today_bleeding_label, bleedingLabel(intensity)),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+        return
+    }
     LutealCard(
         modifier = Modifier.fillMaxWidth(),
         emphasis = LutealCardEmphasis.HERO

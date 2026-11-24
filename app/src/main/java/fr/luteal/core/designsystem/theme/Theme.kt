@@ -37,6 +37,7 @@ fun LutealTheme(
 
     CompositionLocalProvider(
         LocalPhaseColors provides if (darkTheme) DarkPhaseColors else LightPhaseColors,
+        LocalFlowColors provides if (darkTheme) DarkFlowColors else LightFlowColors,
         LocalReducedMotion provides isReducedMotion
     ) {
         MaterialTheme(

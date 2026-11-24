@@ -834,6 +834,9 @@
     <string name="partner_tip_partner_perimeno_support">Flexibilidad ante los cambios de energía</string>
     <string name="partner_tip_partner_perimeno_support_message">Los cambios de la perimenopausia pueden provocar cansancio imprevisible o cambios de temperatura. Ser flexible con los planes de la noche marca una diferencia real.</string>
     <string name="estimate_target_headline">Prevista hacia el %1$s</string>
+    <string name="cycle_ring_day_label">Día</string>
+    <string name="cycle_ring_next_period">Próxima regla prevista hacia el %1$s</string>
+    <string name="cycle_ring_period_day">Regla, día %1$d del ciclo</string>
     <string name="estimate_window_subhead">Ventana probable: %1$s - %2$s</string>
     <string name="calendar_legend_estimated_period_target">Regla estimada (día previsto)</string>
     <string name="widget_estimate_target">Hacia el %1$s</string>

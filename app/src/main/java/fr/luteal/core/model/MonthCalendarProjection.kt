@@ -24,7 +24,8 @@ data class CalendarDayProjection(
     val hasCervicalFluid: Boolean = false,
     val hasPositiveLh: Boolean = false,
     val biomarker: BiomarkerObservation? = null,
-    val pillStatus: PillDayStatus = PillDayStatus.Disabled
+    val pillStatus: PillDayStatus = PillDayStatus.Disabled,
+    val isFuture: Boolean = false
 ) {
     val hasBleeding: Boolean
         get() = bleedingIntensity != null && bleedingIntensity != BleedingIntensity.NONE
@@ -223,7 +224,8 @@ object MonthCalendarProjectionCalculator {
                     hasCervicalFluid = hasCervicalFluid,
                     hasPositiveLh = hasPositiveLh,
                     biomarker = bm,
-                    pillStatus = pillStatus
+                    pillStatus = pillStatus,
+                    isFuture = cur.isAfter(today)
                 )
             )
 

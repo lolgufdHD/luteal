@@ -822,6 +822,9 @@
     <string name="partner_tip_partner_perimeno_support">Flexibility with changing energy</string>
     <string name="partner_tip_partner_perimeno_support_message">Perimenopausal shifts can cause unpredictable fatigue or temperature changes. Staying flexible with evening plans makes a real difference.</string>
     <string name="estimate_target_headline">Expected around %1$s</string>
+    <string name="cycle_ring_day_label">Day</string>
+    <string name="cycle_ring_next_period">Next period expected around %1$s</string>
+    <string name="cycle_ring_period_day">Period, cycle day %1$d</string>
     <string name="estimate_window_subhead">Likely window: %1$s - %2$s</string>
     <string name="calendar_legend_estimated_period_target">Estimated period (target day)</string>
     <string name="widget_estimate_target">Around %1$s</string>

@@ -1,6 +1,7 @@
 package fr.luteal.core.designsystem.component
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,11 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,7 +35,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -45,7 +57,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import fr.luteal.app.R
 import fr.luteal.core.common.LocalizedDateFormatter
-import fr.luteal.core.designsystem.theme.LocalPhaseColors
+import fr.luteal.core.designsystem.theme.FlowColors
+import fr.luteal.core.designsystem.theme.FlowTone
+import fr.luteal.core.designsystem.theme.LocalFlowColors
 import fr.luteal.core.designsystem.theme.LutealSpacing
 import fr.luteal.core.designsystem.theme.tabular
 import fr.luteal.core.model.BleedingIntensity
@@ -58,31 +72,74 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 
+/** Horizontal and vertical gap between day tiles. */
+val CalendarTileSpacing: Dp = 4.dp
+
+private val CalendarTileHeight = 58.dp
+private val CalendarTileShape = RoundedCornerShape(4.dp)
+
+/** Fill and legible text colour for a recorded flow intensity, or null when there is no period flow. */
+fun FlowColors.toneFor(intensity: BleedingIntensity?): FlowTone? = when (intensity) {
+    BleedingIntensity.LIGHT -> light
+    BleedingIntensity.MEDIUM -> medium
+    BleedingIntensity.HEAVY -> heavy
+    else -> null
+}
+
+/**
+ * One month as a grid of tiles. Days outside the month are left blank so a
+ * vertically scrolling stack of months never shows the same date twice.
+ *
+ * Recorded period days carry a bar behind the day number whose colour
+ * deepens with the recorded flow; a run of consecutive days reads as one bar
+ * with rounded ends. Estimated period days get a dashed outline only, so an
+ * estimate can never be mistaken for a record.
+ */
 @Composable
 fun MonthCalendarGrid(
     projection: MonthCalendarProjection,
     selectedDate: LocalDate?,
     onSelectDate: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showWeekdayHeader: Boolean = true
 ) {
+    val days = remember(projection) { projection.weeks.flatten() }
+    val flowDates = remember(days) { days.filter { it.hasPeriodFlow }.map { it.date }.toSet() }
+    val estimatedDates = remember(days) {
+        days.filter { it.isEstimatedPeriodWindow || it.isEstimatedPeriodTarget }.map { it.date }.toSet()
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
+        verticalArrangement = Arrangement.spacedBy(CalendarTileSpacing)
     ) {
-        WeekdayHeaderRow()
+        if (showWeekdayHeader) {
+            CalendarWeekdayHeader()
+        }
 
         projection.weeks.forEach { week ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(CalendarTileSpacing)
             ) {
                 week.forEach { day ->
-                    CalendarDayCell(
-                        day = day,
-                        isSelected = day.date == selectedDate,
-                        onClick = { onSelectDate(day.date) },
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (!day.isCurrentMonth) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    } else {
+                        val runDates = when {
+                            day.hasPeriodFlow -> flowDates
+                            day.date in estimatedDates -> estimatedDates
+                            else -> emptySet()
+                        }
+                        CalendarDayCell(
+                            day = day,
+                            isSelected = day.date == selectedDate,
+                            onClick = { onSelectDate(day.date) },
+                            joinsPrevious = day.date.minusDays(1) in runDates,
+                            joinsNext = day.date.plusDays(1) in runDates,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -90,22 +147,22 @@ fun MonthCalendarGrid(
 }
 
 @Composable
-private fun WeekdayHeaderRow() {
+fun CalendarWeekdayHeader(modifier: Modifier = Modifier) {
     val locale = LocalConfiguration.current.locales[0]
     val firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek
     val daysOfWeek = (0L..6L).map { firstDayOfWeek.plus(it) }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = LutealSpacing.xs),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = LutealSpacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(CalendarTileSpacing)
     ) {
         daysOfWeek.forEach { day ->
             val label = day.getDisplayName(TextStyle.NARROW, locale)
             Text(
                 text = label.uppercase(locale),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
@@ -123,42 +180,160 @@ fun CalendarDayCell(
     day: CalendarDayProjection,
     isSelected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    joinsPrevious: Boolean = false,
+    joinsNext: Boolean = false
 ) {
-    val phaseColors = LocalPhaseColors.current
-
-    val cellBackground: Color = when {
-        day.hasPeriodFlow -> phaseColors.menstrual.container
-        day.isEstimatedPeriodTarget -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f)
-        day.isEstimatedPeriodWindow -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f)
-        day.isSpottingOnly -> Color.Transparent
-        day.cyclePhase == CyclePhase.FOLLICULAR -> phaseColors.follicular.container.copy(alpha = 0.35f)
-        day.cyclePhase == CyclePhase.OVULATORY -> phaseColors.ovulatory.container.copy(alpha = 0.45f)
-        day.cyclePhase == CyclePhase.LUTEAL -> phaseColors.luteal.container.copy(alpha = 0.35f)
-        day.cyclePhase == CyclePhase.MENSTRUAL -> phaseColors.menstrual.container.copy(alpha = 0.35f)
-        else -> Color.Transparent
-    }
+    val scheme = MaterialTheme.colorScheme
+    val flowColors = LocalFlowColors.current
+    val flowTone = if (day.hasPeriodFlow) flowColors.toneFor(day.bleedingIntensity) else null
+    val isEstimated = flowTone == null && (day.isEstimatedPeriodWindow || day.isEstimatedPeriodTarget)
 
     val cellBorder: BorderStroke? = when {
-        isSelected -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-        day.isEstimatedPeriodTarget -> BorderStroke(1.5.dp, MaterialTheme.colorScheme.tertiary)
-        day.isEstimatedPeriodWindow -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        day.isSpottingOnly -> BorderStroke(1.dp, phaseColors.menstrual.content.copy(alpha = 0.5f))
-        day.isToday -> BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        day.isToday -> BorderStroke(2.dp, scheme.primary)
+        isSelected -> BorderStroke(2.dp, scheme.onSurfaceVariant)
         else -> null
     }
 
     val textColor: Color = when {
-        !day.isCurrentMonth -> MaterialTheme.colorScheme.outline
-        day.hasPeriodFlow -> phaseColors.menstrual.content
-        day.isToday -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onSurface
+        flowTone != null -> flowTone.onFill
+        day.isToday -> scheme.primary
+        day.isFuture -> scheme.onSurfaceVariant.copy(alpha = 0.6f)
+        else -> scheme.onSurface
     }
 
+    val cdString = calendarDayDescription(day)
+
+    // Rounded only where a run of period days starts or ends, so consecutive
+    // days visually join into one bar across the tile gaps.
+    val barShape = RoundedCornerShape(
+        topStartPercent = if (joinsPrevious) 0 else 50,
+        bottomStartPercent = if (joinsPrevious) 0 else 50,
+        topEndPercent = if (joinsNext) 0 else 50,
+        bottomEndPercent = if (joinsNext) 0 else 50
+    )
+
+    Box(
+        modifier = modifier
+            .height(CalendarTileHeight)
+            .clip(CalendarTileShape)
+            .background(scheme.surfaceVariant)
+            .then(
+                if (cellBorder != null) Modifier.border(cellBorder, CalendarTileShape)
+                else Modifier
+            )
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = cdString }
+    ) {
+        // Indicators, top-left
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 5.dp, top = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (day.isSpottingOnly) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 3.dp, height = 10.dp)
+                        .background(flowColors.spotting, RoundedCornerShape(1.5.dp))
+                )
+            }
+            when (val pill = day.pillStatus) {
+                is PillDayStatus.ActiveDay -> CalendarPillCapsule(
+                    color = scheme.primary,
+                    filled = pill.isTakenToday
+                )
+                is PillDayStatus.PauseDay -> CalendarPillCapsule(
+                    color = scheme.outline,
+                    filled = false
+                )
+                PillDayStatus.Disabled -> Unit
+            }
+            if (day.hasObservations) {
+                CalendarDot(color = scheme.secondary, size = 6.dp)
+            }
+            if (day.hasBiomarkers) {
+                CalendarDot(color = scheme.tertiary, size = 6.dp)
+            }
+        }
+
+        // Period bar with the day number, bottom
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 5.dp)
+                .fillMaxWidth()
+                .height(26.dp)
+                .then(
+                    when {
+                        flowTone != null -> Modifier.background(flowTone.fill, barShape)
+                        isEstimated -> Modifier.dashedOutline(
+                            shape = barShape,
+                            color = flowColors.estimated,
+                            fill = if (day.isEstimatedPeriodTarget) {
+                                flowColors.estimated.copy(alpha = 0.22f)
+                            } else {
+                                Color.Transparent
+                            },
+                            drawStart = !joinsPrevious,
+                            drawEnd = !joinsNext
+                        )
+                        else -> Modifier
+                    }
+                ),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Text(
+                text = day.date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.titleMedium.tabular().copy(
+                    fontWeight = if (day.isToday || flowTone != null) FontWeight.Bold else FontWeight.Normal
+                ),
+                color = textColor,
+                modifier = Modifier.padding(end = 7.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Dashed outline for estimated days. Where a run continues into the next
+ * tile the open side is left undrawn, so the dashes read as one band.
+ */
+private fun Modifier.dashedOutline(
+    shape: Shape,
+    color: Color,
+    fill: Color,
+    drawStart: Boolean,
+    drawEnd: Boolean
+): Modifier = drawBehind {
+    val strokeWidth = 1.5.dp.toPx()
+    val outline = shape.createOutline(size, layoutDirection, this)
+    if (fill != Color.Transparent) {
+        drawOutline(outline = outline, color = fill)
+    }
+    val inset = strokeWidth / 2f
+    val clipLeft = if (drawStart) 0f else inset + 0.5f
+    val clipRight = if (drawEnd) size.width else size.width - inset - 0.5f
+    clipRect(left = clipLeft, right = clipRight) {
+        drawOutline(
+            outline = outline,
+            color = color,
+            style = Stroke(
+                width = strokeWidth,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+            )
+        )
+    }
+}
+
+@Composable
+private fun calendarDayDescription(day: CalendarDayProjection): String {
     val locale = LocalConfiguration.current.locales[0]
-    val cdFormattedDate = LocalizedDateFormatter.formatFullDate(day.date, locale)
-    val cdString = buildString {
-        append(cdFormattedDate)
+    val formattedDate = LocalizedDateFormatter.formatFullDate(day.date, locale)
+    return buildString {
+        append(formattedDate)
         if (day.isToday) {
             append(", ")
             append(stringResource(R.string.calendar_today_button))
@@ -232,82 +407,6 @@ fun CalendarDayCell(
             PillDayStatus.Disabled -> Unit
         }
     }
-
-    Box(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .clickable(
-                role = Role.Button,
-                onClick = onClick
-            )
-            .padding(2.dp)
-            .clip(MaterialTheme.shapes.small)
-            .background(cellBackground)
-            .then(
-                if (cellBorder != null) Modifier.border(cellBorder, MaterialTheme.shapes.small)
-                else Modifier
-            )
-            .semantics {
-                contentDescription = cdString
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(vertical = 4.dp)
-        ) {
-            Text(
-                text = day.date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.bodyMedium.tabular().copy(
-                    fontWeight = if (day.isToday || isSelected || day.hasPeriodFlow) FontWeight.Bold else FontWeight.Normal
-                ),
-                color = textColor,
-                textAlign = TextAlign.Center
-            )
-
-            // Indicators below day number
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (day.isCycleStart) {
-                        CalendarDot(color = phaseColors.menstrual.content, size = 5.dp)
-                    }
-                    if (day.isSpottingOnly) {
-                        CalendarDot(color = phaseColors.menstrual.content.copy(alpha = 0.7f), size = 4.dp)
-                    }
-                    if (day.hasObservations) {
-                        CalendarDot(color = MaterialTheme.colorScheme.secondary, size = 5.dp)
-                    }
-                    if (day.hasBiomarkers) {
-                        CalendarDot(color = MaterialTheme.colorScheme.tertiary, size = 5.dp)
-                    }
-                    when (val pill = day.pillStatus) {
-                        is PillDayStatus.ActiveDay -> {
-                            CalendarPillCapsule(
-                                color = MaterialTheme.colorScheme.primary,
-                                filled = pill.isTakenToday
-                            )
-                        }
-                        is PillDayStatus.PauseDay -> {
-                            CalendarPillCapsule(
-                                color = MaterialTheme.colorScheme.outline,
-                                filled = false
-                            )
-                        }
-                        PillDayStatus.Disabled -> Unit
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -320,21 +419,56 @@ private fun CalendarDot(color: Color, size: Dp) {
     )
 }
 
+/**
+ * Diagonal two-tone capsule (classic pill glyph).
+ * - filled = true: one half solid, the other half tinted (pill taken)
+ * - filled = false: outline with a centre seam only (scheduled / pause)
+ */
 @Composable
-private fun CalendarPillCapsule(color: Color, filled: Boolean) {
-    val capsuleShape = RoundedCornerShape(percent = 50)
-    Box(
-        modifier = Modifier
-            .size(width = 8.dp, height = 4.dp)
-            .clip(capsuleShape)
-            .then(
-                if (filled) {
-                    Modifier.background(color)
-                } else {
-                    Modifier.border(1.dp, color, capsuleShape)
+fun CalendarPillCapsule(color: Color, filled: Boolean, size: Dp = 12.dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val strokeWidth = 1.dp.toPx()
+        val length = this.size.minDimension - strokeWidth
+        val thickness = length * 0.42f
+        val topLeft = Offset(
+            x = (this.size.width - length) / 2f,
+            y = (this.size.height - thickness) / 2f
+        )
+        val capsuleSize = Size(length, thickness)
+        val radius = CornerRadius(thickness / 2f)
+
+        rotate(degrees = -45f) {
+            if (filled) {
+                drawRoundRect(
+                    color = color.copy(alpha = 0.35f),
+                    topLeft = topLeft,
+                    size = capsuleSize,
+                    cornerRadius = radius
+                )
+                clipRect(right = center.x) {
+                    drawRoundRect(
+                        color = color,
+                        topLeft = topLeft,
+                        size = capsuleSize,
+                        cornerRadius = radius
+                    )
                 }
+            }
+            drawRoundRect(
+                color = color,
+                topLeft = topLeft,
+                size = capsuleSize,
+                cornerRadius = radius,
+                style = Stroke(width = strokeWidth)
             )
-    )
+            drawLine(
+                color = color,
+                start = Offset(center.x, topLeft.y),
+                end = Offset(center.x, topLeft.y + thickness),
+                strokeWidth = strokeWidth
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -343,7 +477,7 @@ fun CalendarLegendCard(
     showPillLegend: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val phaseColors = LocalPhaseColors.current
+    val flowColors = LocalFlowColors.current
     var isExpanded by remember { mutableStateOf(false) }
 
     Surface(
@@ -352,22 +486,22 @@ fun CalendarLegendCard(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Column(
-            modifier = Modifier.padding(LutealSpacing.sm),
+            modifier = Modifier.padding(horizontal = LutealSpacing.sm, vertical = LutealSpacing.xxs),
             verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.calendar_legend_toggle),
+                    text = stringResource(R.string.calendar_legend_title),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                IconButton(
-                    onClick = { isExpanded = !isExpanded }
-                ) {
+                IconButton(onClick = { isExpanded = !isExpanded }) {
                     Icon(
                         imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                         contentDescription = stringResource(R.string.calendar_legend_toggle),
@@ -376,284 +510,87 @@ fun CalendarLegendCard(
                 }
             }
 
-            if (!isExpanded) {
-                val menstrualDesc = stringResource(R.string.calendar_legend_phase_menstrual)
-                val follicularDesc = stringResource(R.string.calendar_legend_phase_follicular)
-                val ovulatoryDesc = stringResource(R.string.calendar_legend_phase_ovulatory)
-                val lutealDesc = stringResource(R.string.calendar_legend_phase_luteal)
-                val observationDesc = stringResource(R.string.calendar_legend_observation)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(LutealSpacing.sm),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(10.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
-                            .background(phaseColors.menstrual.container)
-                            .border(1.dp, phaseColors.menstrual.content.copy(alpha = 0.5f), MaterialTheme.shapes.extraSmall)
-                            .semantics { contentDescription = menstrualDesc }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(10.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
-                            .background(phaseColors.follicular.container.copy(alpha = 0.35f))
-                            .semantics { contentDescription = follicularDesc }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(10.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
-                            .background(phaseColors.ovulatory.container.copy(alpha = 0.45f))
-                            .semantics { contentDescription = ovulatoryDesc }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(10.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
-                            .background(phaseColors.luteal.container.copy(alpha = 0.35f))
-                            .semantics { contentDescription = lutealDesc }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.secondary)
-                            .semantics { contentDescription = observationDesc }
-                    )
-                }
-            } else {
+            if (isExpanded) {
                 FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = LutealSpacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(LutealSpacing.md),
                     verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
                 ) {
-                    // Recorded period
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
+                    LegendItem(label = stringResource(R.string.bleeding_light)) {
+                        LegendBar(color = flowColors.light.fill)
+                    }
+                    LegendItem(label = stringResource(R.string.bleeding_medium)) {
+                        LegendBar(color = flowColors.medium.fill)
+                    }
+                    LegendItem(label = stringResource(R.string.bleeding_heavy)) {
+                        LegendBar(color = flowColors.heavy.fill)
+                    }
+                    LegendItem(label = stringResource(R.string.calendar_legend_spotting)) {
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .background(phaseColors.menstrual.container)
-                                .border(1.dp, phaseColors.menstrual.content.copy(alpha = 0.5f), MaterialTheme.shapes.extraSmall)
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_phase_menstrual),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                .size(width = 3.dp, height = 10.dp)
+                                .background(flowColors.spotting, RoundedCornerShape(1.5.dp))
                         )
                     }
-
-                    // Spotting
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
+                    LegendItem(label = stringResource(R.string.calendar_legend_estimated_period)) {
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .border(1.dp, phaseColors.menstrual.content.copy(alpha = 0.5f), MaterialTheme.shapes.extraSmall),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CalendarDot(color = phaseColors.menstrual.content.copy(alpha = 0.7f), size = 4.dp)
-                        }
-                        Text(
-                            text = stringResource(R.string.calendar_legend_spotting),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                .size(width = 22.dp, height = 10.dp)
+                                .dashedOutline(
+                                    shape = RoundedCornerShape(50),
+                                    color = flowColors.estimated,
+                                    fill = Color.Transparent,
+                                    drawStart = true,
+                                    drawEnd = true
+                                )
                         )
                     }
-
-                    // Follicular
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .background(phaseColors.follicular.container.copy(alpha = 0.35f))
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_phase_follicular),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    LegendItem(label = stringResource(R.string.calendar_legend_observation)) {
+                        CalendarDot(color = MaterialTheme.colorScheme.secondary, size = 6.dp)
                     }
-
-                    // Ovulatory transition
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .background(phaseColors.ovulatory.container.copy(alpha = 0.45f))
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_phase_ovulatory),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    LegendItem(label = stringResource(R.string.calendar_legend_biomarkers)) {
+                        CalendarDot(color = MaterialTheme.colorScheme.tertiary, size = 6.dp)
                     }
-
-                    // Luteal
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .background(phaseColors.luteal.container.copy(alpha = 0.35f))
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_phase_luteal),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Estimated period target
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f))
-                                .border(1.5.dp, MaterialTheme.colorScheme.tertiary, MaterialTheme.shapes.extraSmall)
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_estimated_period_target),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Estimated period window
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraSmall)
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_estimated_period),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Observations
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.secondary)
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_observation),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Biomarkers
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.tertiary)
-                        )
-                        Text(
-                            text = stringResource(R.string.calendar_legend_biomarkers),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     if (showPillLegend) {
-                        // Pill taken
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                        ) {
-                            CalendarPillCapsule(
-                                color = MaterialTheme.colorScheme.primary,
-                                filled = true
-                            )
-                            Text(
-                                text = stringResource(R.string.calendar_legend_pill_taken),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        LegendItem(label = stringResource(R.string.calendar_legend_pill_taken)) {
+                            CalendarPillCapsule(color = MaterialTheme.colorScheme.primary, filled = true)
                         }
-
-                        // Pill scheduled
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                        ) {
-                            CalendarPillCapsule(
-                                color = MaterialTheme.colorScheme.primary,
-                                filled = false
-                            )
-                            Text(
-                                text = stringResource(R.string.calendar_legend_pill_scheduled),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        LegendItem(label = stringResource(R.string.calendar_legend_pill_scheduled)) {
+                            CalendarPillCapsule(color = MaterialTheme.colorScheme.primary, filled = false)
                         }
-
-                        // Pill pause
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                        ) {
-                            CalendarPillCapsule(
-                                color = MaterialTheme.colorScheme.outline,
-                                filled = false
-                            )
-                            Text(
-                                text = stringResource(R.string.calendar_legend_pill_pause),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        LegendItem(label = stringResource(R.string.calendar_legend_pill_pause)) {
+                            CalendarPillCapsule(color = MaterialTheme.colorScheme.outline, filled = false)
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LegendItem(label: String, swatch: @Composable () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
+    ) {
+        swatch()
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun LegendBar(color: Color) {
+    Box(
+        modifier = Modifier
+            .width(22.dp)
+            .height(10.dp)
+            .background(color, RoundedCornerShape(50))
+    )
 }

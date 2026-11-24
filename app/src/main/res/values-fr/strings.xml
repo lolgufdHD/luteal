@@ -826,6 +826,9 @@
     <string name="partner_tip_partner_perimeno_support">Souplesse face aux variations d’énergie</string>
     <string name="partner_tip_partner_perimeno_support_message">La périménopause peut causer des baisses d’énergie et des sensations thermiques imprévisibles. Rester souple sur les projets du soir fait une vraie différence.</string>
     <string name="estimate_target_headline">Prévues autour du %1$s</string>
+    <string name="cycle_ring_day_label">Jour</string>
+    <string name="cycle_ring_next_period">Prochaines règles prévues autour du %1$s</string>
+    <string name="cycle_ring_period_day">Règles, jour %1$d du cycle</string>
     <string name="estimate_window_subhead">Fenêtre probable&#160;: %1$s - %2$s</string>
     <string name="calendar_legend_estimated_period_target">Règles estimées (jour prévu)</string>
     <string name="widget_estimate_target">Autour du %1$s</string>
