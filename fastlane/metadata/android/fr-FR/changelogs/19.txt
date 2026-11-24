@@ -1,0 +1,3 @@
+- Aujourd'hui : anneau du cycle avec les jours de règles et la prochaine estimation.
+- Calendrier : défilement vertical des mois ; une barre marque les règles, plus foncée si le flux est abondant ; icône de pilule agrandie.
+- Duo : partage optionnel du journal (flux, estimation, humeur/énergie, pilule) sur 3, 6 ou 12 mois, en lecture seule.

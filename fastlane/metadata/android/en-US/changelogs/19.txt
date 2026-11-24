@@ -1,0 +1,3 @@
+- Today: cycle ring showing period days and the next estimated period.
+- Calendar: months scroll vertically; a bar marks period days, darker for heavier flow; larger pill icon.
+- Duo: optionally share your journal (flow, estimate, mood/energy, pill) for 3, 6 or 12 months; your partner sees it read-only in their calendar.

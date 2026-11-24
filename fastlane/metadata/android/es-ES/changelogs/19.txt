@@ -1,0 +1,3 @@
+- Hoy: anillo del ciclo con los días de regla y la próxima estimación.
+- Calendario: los meses se desplazan en vertical; una barra marca la regla, más oscura cuanto más abundante; icono de píldora más grande.
+- Dúo: comparte opcionalmente tu diario (flujo, estimación, ánimo/energía, píldora) durante 3, 6 o 12 meses, solo lectura.
