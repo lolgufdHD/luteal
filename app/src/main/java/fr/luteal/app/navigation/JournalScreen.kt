@@ -157,7 +157,11 @@ fun JournalScreen(
     initialViewMode: JournalViewMode = JournalViewMode.CALENDAR
 ) {
     val context = LocalContext.current
-    var viewMode by rememberSaveable { mutableStateOf(initialViewMode) }
+    var selectedViewMode by rememberSaveable { mutableStateOf(initialViewMode) }
+    // With pill tracking on, the timeline, variability, temperature and pattern
+    // views have nothing meaningful to show, so the Journal is the calendar only.
+    val pillTrackingOn = state.preferences.pillRegimenConfig.isEnabled
+    val viewMode = if (pillTrackingOn) JournalViewMode.CALENDAR else selectedViewMode
     val listState = rememberLazyListState()
     // Duo partner side: the tracker's shared journal, as last received.
     val partnerInputs = remember(state.preferences.duoPartnerSharedHistoryJson) {
@@ -354,6 +358,7 @@ fun JournalScreen(
                 }
             }
 
+            if (!pillTrackingOn) {
             @Suppress("DEPRECATION")
             ScrollableTabRow(
                 selectedTabIndex = viewMode.ordinal,
@@ -364,7 +369,7 @@ fun JournalScreen(
             ) {
                 Tab(
                     selected = viewMode == JournalViewMode.CALENDAR,
-                    onClick = { viewMode = JournalViewMode.CALENDAR },
+                    onClick = { selectedViewMode = JournalViewMode.CALENDAR },
                     text = {
                         Text(
                             text = stringResource(R.string.calendar_view_calendar),
@@ -380,7 +385,7 @@ fun JournalScreen(
                 )
                 Tab(
                     selected = viewMode == JournalViewMode.TIMELINE,
-                    onClick = { viewMode = JournalViewMode.TIMELINE },
+                    onClick = { selectedViewMode = JournalViewMode.TIMELINE },
                     text = {
                         Text(
                             text = stringResource(R.string.calendar_view_list),
@@ -396,7 +401,7 @@ fun JournalScreen(
                 )
                 Tab(
                     selected = viewMode == JournalViewMode.VARIABILITY,
-                    onClick = { viewMode = JournalViewMode.VARIABILITY },
+                    onClick = { selectedViewMode = JournalViewMode.VARIABILITY },
                     text = {
                         Text(
                             text = stringResource(R.string.journal_view_variability),
@@ -412,7 +417,7 @@ fun JournalScreen(
                 )
                 Tab(
                     selected = viewMode == JournalViewMode.THERMAL,
-                    onClick = { viewMode = JournalViewMode.THERMAL },
+                    onClick = { selectedViewMode = JournalViewMode.THERMAL },
                     text = {
                         Text(
                             text = stringResource(R.string.journal_view_thermal),
@@ -428,7 +433,7 @@ fun JournalScreen(
                 )
                 Tab(
                     selected = viewMode == JournalViewMode.PATTERNS,
-                    onClick = { viewMode = JournalViewMode.PATTERNS },
+                    onClick = { selectedViewMode = JournalViewMode.PATTERNS },
                     text = {
                         Text(
                             text = stringResource(R.string.journal_view_patterns),
@@ -442,6 +447,7 @@ fun JournalScreen(
                         )
                     }
                 )
+            }
             }
 
             if (viewMode == JournalViewMode.CALENDAR) {
