@@ -1,0 +1,3 @@
+- Journal: with pill tracking on, only the calendar is shown.
+- Duo: the partner's shared calendar now reaches a year ahead.
+- Duo: support requests have been removed.

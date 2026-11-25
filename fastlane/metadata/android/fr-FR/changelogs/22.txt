@@ -1,0 +1,3 @@
+- Journal : avec le suivi de pilule activé, seul le calendrier est affiché.
+- Duo : le calendrier partagé du partenaire s’étend désormais sur un an à venir.
+- Duo : les demandes de soutien ont été supprimées.

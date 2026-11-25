@@ -1,0 +1,3 @@
+- Diario: con el seguimiento de la píldora activado, solo se muestra el calendario.
+- Duo: el calendario compartido de la pareja llega ahora a un año vista.
+- Duo: se han eliminado las peticiones de apoyo.
