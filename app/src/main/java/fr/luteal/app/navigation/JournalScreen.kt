@@ -201,14 +201,17 @@ fun JournalScreen(
     }
     // Months scroll vertically. Own records: from the earliest data (at least
     // a year back) to a year ahead, so the estimate stays reachable. Partner:
-    // exactly the shared window, plus the estimate if one was shared.
+    // the shared window back, a year ahead.
     val calendarMonths = remember(state.today, calendarSource) {
         val todayMonth = YearMonth.from(state.today)
         val start: YearMonth
         val end: YearMonth
         if (calendarSource.firstMonth != null) {
+            // Past: exactly the shared window. Future: a year ahead like the
+            // tracker's own calendar, so shared pill packs and the estimate
+            // stay visible; nothing beyond what was shared is invented.
             start = minOf(calendarSource.firstMonth, todayMonth)
-            end = maxOf(calendarSource.lastDataMonth ?: todayMonth, todayMonth)
+            end = maxOf(calendarSource.lastDataMonth ?: todayMonth, todayMonth.plusMonths(12))
         } else {
             val earliestData = (calendarSource.cycles.map { it.startDate } + calendarSource.entries.map { it.date }).minOrNull()
             start = listOfNotNull(earliestData?.let(YearMonth::from), todayMonth.minusMonths(12)).min()
