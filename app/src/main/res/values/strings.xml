@@ -823,8 +823,31 @@
     <string name="partner_tip_partner_perimeno_support_message">Perimenopausal shifts can cause unpredictable fatigue or temperature changes. Staying flexible with evening plans makes a real difference.</string>
     <string name="estimate_target_headline">Expected around %1$s</string>
     <string name="cycle_ring_day_label">Day</string>
-    <string name="cycle_ring_next_period">Next period expected around %1$s</string>
     <string name="cycle_ring_period_day">Period, cycle day %1$d</string>
+    <string name="countdown_phase_bleed">Period</string>
+    <string name="countdown_phase_follicular">Follicular phase</string>
+    <string name="countdown_phase_ovulation">Ovulation (estimated)</string>
+    <string name="countdown_phase_luteal">Luteal phase</string>
+    <string name="countdown_phase_pill_active">Active pills</string>
+    <string name="countdown_period_tomorrow">Period expected tomorrow</string>
+    <string name="countdown_pause_tomorrow">Pill break starts tomorrow</string>
+    <string name="countdown_support_pill">Pill break from %1$s, bleed likely then</string>
+    <string name="countdown_support_typical">Typical 28-day cycle until you have recorded one: around %1$s</string>
+    <string name="countdown_probably">Probably: %1$s</string>
+    <string name="countdown_pill_next_bleed">Next pill break from %1$s</string>
+    <string name="countdown_pill_next_bleed_body">With the pill, the bleed follows your pack (withdrawal bleed), not your cycle history.</string>
+    <plurals name="countdown_days_until_period">
+        <item quantity="one">Next period in %1$d day</item>
+        <item quantity="other">Next period in %1$d days</item>
+    </plurals>
+    <plurals name="countdown_days_until_pause">
+        <item quantity="one">Pill break in %1$d day</item>
+        <item quantity="other">Pill break in %1$d days</item>
+    </plurals>
+    <plurals name="countdown_days_late">
+        <item quantity="one">%1$d day later than expected</item>
+        <item quantity="other">%1$d days later than expected</item>
+    </plurals>
     <string name="estimate_window_subhead">Likely window: %1$s - %2$s</string>
     <string name="calendar_legend_estimated_period_target">Estimated period (target day)</string>
     <string name="widget_estimate_target">Around %1$s</string>
@@ -914,6 +937,9 @@
     <string name="journal_owner_partner">Partner</string>
     <string name="journal_partner_readonly_hint">Shared by your partner · read only · last %1$d months</string>
     <string name="journal_partner_readonly_badge">Shared · read only</string>
+    <string name="journal_partner_snapshot">Updated %1$s · period starts shared: %2$d</string>
+    <string name="settings_start_screen_title">Start screen</string>
+    <string name="settings_start_screen_body">The tab the app opens on.</string>
     <string name="journal_partner_day_empty">Nothing shared for this day.</string>
     <string name="duo_view_pill_taken">Pill pack: Day %1$d of %2$d (taken today)</string>
     <string name="duo_view_pill_pending">Pill pack: Day %1$d of %2$d (scheduled today)</string>

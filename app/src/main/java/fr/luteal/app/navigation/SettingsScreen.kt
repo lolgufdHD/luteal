@@ -421,6 +421,23 @@ fun SettingsScreen(
                 selected = syncState.temperatureUnit == "FAHRENHEIT",
                 onClick = { viewModel.setTemperatureUnit("FAHRENHEIT") }
             )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Text(
+                text = stringResource(R.string.settings_start_screen_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = stringResource(R.string.settings_start_screen_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LutealDestination.entries.forEach { destination ->
+                LutealRadioRow(
+                    title = stringResource(destination.labelRes),
+                    selected = LutealDestination.fromPreference(syncState.startDestination) == destination,
+                    onClick = { viewModel.setStartDestination(destination.name) }
+                )
+            }
         }
         Spacer(Modifier.height(LutealSpacing.md))
     }

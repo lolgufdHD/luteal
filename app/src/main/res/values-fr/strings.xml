@@ -827,8 +827,34 @@
     <string name="partner_tip_partner_perimeno_support_message">La périménopause peut causer des baisses d’énergie et des sensations thermiques imprévisibles. Rester souple sur les projets du soir fait une vraie différence.</string>
     <string name="estimate_target_headline">Prévues autour du %1$s</string>
     <string name="cycle_ring_day_label">Jour</string>
-    <string name="cycle_ring_next_period">Prochaines règles prévues autour du %1$s</string>
     <string name="cycle_ring_period_day">Règles, jour %1$d du cycle</string>
+    <string name="countdown_phase_bleed">Règles</string>
+    <string name="countdown_phase_follicular">Phase folliculaire</string>
+    <string name="countdown_phase_ovulation">Ovulation (estimée)</string>
+    <string name="countdown_phase_luteal">Phase lutéale</string>
+    <string name="countdown_phase_pill_active">Comprimés actifs</string>
+    <string name="countdown_period_tomorrow">Règles attendues demain</string>
+    <string name="countdown_pause_tomorrow">La pause commence demain</string>
+    <string name="countdown_support_pill">Pause à partir du %1$s, saignement probable</string>
+    <string name="countdown_support_typical">Cycle type de 28 jours en attendant le vôtre&#160;: vers le %1$s</string>
+    <string name="countdown_probably">Probablement&#160;: %1$s</string>
+    <string name="countdown_pill_next_bleed">Prochaine pause à partir du %1$s</string>
+    <string name="countdown_pill_next_bleed_body">Sous pilule, le saignement suit la plaquette (hémorragie de privation), pas l’historique du cycle.</string>
+    <plurals name="countdown_days_until_period">
+        <item quantity="one">Règles dans %1$d jour</item>
+        <item quantity="many">Règles dans %1$d jours</item>
+        <item quantity="other">Règles dans %1$d jours</item>
+    </plurals>
+    <plurals name="countdown_days_until_pause">
+        <item quantity="one">Pause dans %1$d jour</item>
+        <item quantity="many">Pause dans %1$d jours</item>
+        <item quantity="other">Pause dans %1$d jours</item>
+    </plurals>
+    <plurals name="countdown_days_late">
+        <item quantity="one">%1$d jour de retard sur l’estimation</item>
+        <item quantity="many">%1$d jours de retard sur l’estimation</item>
+        <item quantity="other">%1$d jours de retard sur l’estimation</item>
+    </plurals>
     <string name="estimate_window_subhead">Fenêtre probable&#160;: %1$s - %2$s</string>
     <string name="calendar_legend_estimated_period_target">Règles estimées (jour prévu)</string>
     <string name="widget_estimate_target">Autour du %1$s</string>
@@ -919,6 +945,9 @@
     <string name="journal_owner_partner">Partenaire</string>
     <string name="journal_partner_readonly_hint">Partagé par votre partenaire · lecture seule · %1$d derniers mois</string>
     <string name="journal_partner_readonly_badge">Partagé · lecture seule</string>
+    <string name="journal_partner_snapshot">Mis à jour le %1$s · débuts de règles partagés&#160;: %2$d</string>
+    <string name="settings_start_screen_title">Écran d’accueil</string>
+    <string name="settings_start_screen_body">L’onglet affiché à l’ouverture de l’app.</string>
     <string name="journal_partner_day_empty">Rien de partagé pour ce jour.</string>
     <string name="duo_view_pill_taken">Plaquette&#160;: Jour %1$d sur %2$d (prise enregistrée)</string>
     <string name="duo_view_pill_pending">Plaquette&#160;: Jour %1$d sur %2$d (prise prévue aujourd’hui)</string>

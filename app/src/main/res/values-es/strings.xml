@@ -835,8 +835,34 @@
     <string name="partner_tip_partner_perimeno_support_message">Los cambios de la perimenopausia pueden provocar cansancio imprevisible o cambios de temperatura. Ser flexible con los planes de la noche marca una diferencia real.</string>
     <string name="estimate_target_headline">Prevista hacia el %1$s</string>
     <string name="cycle_ring_day_label">Día</string>
-    <string name="cycle_ring_next_period">Próxima regla prevista hacia el %1$s</string>
     <string name="cycle_ring_period_day">Regla, día %1$d del ciclo</string>
+    <string name="countdown_phase_bleed">Regla</string>
+    <string name="countdown_phase_follicular">Fase folicular</string>
+    <string name="countdown_phase_ovulation">Ovulación (estimada)</string>
+    <string name="countdown_phase_luteal">Fase lútea</string>
+    <string name="countdown_phase_pill_active">Píldoras activas</string>
+    <string name="countdown_period_tomorrow">Regla prevista mañana</string>
+    <string name="countdown_pause_tomorrow">El descanso empieza mañana</string>
+    <string name="countdown_support_pill">Descanso desde el %1$s, sangrado probable</string>
+    <string name="countdown_support_typical">Ciclo típico de 28 días hasta que registres uno: hacia el %1$s</string>
+    <string name="countdown_probably">Probablemente: %1$s</string>
+    <string name="countdown_pill_next_bleed">Próximo descanso desde el %1$s</string>
+    <string name="countdown_pill_next_bleed_body">Con la píldora, el sangrado sigue al blíster (sangrado por deprivación), no al historial del ciclo.</string>
+    <plurals name="countdown_days_until_period">
+        <item quantity="one">Regla en %1$d día</item>
+        <item quantity="many">Regla en %1$d días</item>
+        <item quantity="other">Regla en %1$d días</item>
+    </plurals>
+    <plurals name="countdown_days_until_pause">
+        <item quantity="one">Descanso en %1$d día</item>
+        <item quantity="many">Descanso en %1$d días</item>
+        <item quantity="other">Descanso en %1$d días</item>
+    </plurals>
+    <plurals name="countdown_days_late">
+        <item quantity="one">%1$d día más tarde de lo previsto</item>
+        <item quantity="many">%1$d días más tarde de lo previsto</item>
+        <item quantity="other">%1$d días más tarde de lo previsto</item>
+    </plurals>
     <string name="estimate_window_subhead">Ventana probable: %1$s - %2$s</string>
     <string name="calendar_legend_estimated_period_target">Regla estimada (día previsto)</string>
     <string name="widget_estimate_target">Hacia el %1$s</string>
@@ -928,6 +954,9 @@
     <string name="journal_owner_partner">Pareja</string>
     <string name="journal_partner_readonly_hint">Compartido por tu pareja · solo lectura · últimos %1$d meses</string>
     <string name="journal_partner_readonly_badge">Compartido · solo lectura</string>
+    <string name="journal_partner_snapshot">Actualizado el %1$s · inicios de regla compartidos: %2$d</string>
+    <string name="settings_start_screen_title">Pantalla de inicio</string>
+    <string name="settings_start_screen_body">La pestaña con la que se abre la app.</string>
     <string name="journal_partner_day_empty">No hay nada compartido para este día.</string>
     <string name="duo_view_pill_taken">Blíster: Día %1$d de %2$d (tomada hoy)</string>
     <string name="duo_view_pill_pending">Blíster: Día %1$d de %2$d (prevista hoy)</string>

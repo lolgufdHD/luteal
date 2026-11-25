@@ -17,6 +17,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.luteal.core.data.datastore.UserPreferences
+import fr.luteal.core.data.datastore.UserPreferencesDataStore
+import fr.luteal.core.model.PeriodStartDetector
+import kotlinx.coroutines.flow.first
 import fr.luteal.core.data.repository.BiomarkerRepository
 import fr.luteal.core.data.repository.CycleRepository
 import fr.luteal.core.data.repository.DailyEntryRepository
@@ -60,9 +63,23 @@ class LutealViewModel @Inject constructor(
     private val clinicalReportAggregator: ClinicalReportAggregator,
     private val notificationScheduler: NotificationScheduler,
     private val duoProjectionSynchronizer: DuoProjectionSynchronizer,
+    private val userPreferencesDataStore: UserPreferencesDataStore,
     private val clock: Clock
 ) : ViewModel() {
     private val operationState = MutableStateFlow(OperationState())
+
+    init {
+        // One-time repair for histories recorded before period starts were
+        // inferred from flow: without it the current cycle never ends.
+        viewModelScope.launch {
+            runCatching {
+                if (!userPreferencesDataStore.isPeriodStartInferenceDone()) {
+                    addMissingPeriodStarts()
+                    userPreferencesDataStore.setPeriodStartInferenceDone()
+                }
+            }
+        }
+    }
 
     /** Local calendar date at construction; seeds the StateFlow before the first emission. */
     private val initialToday: LocalDate = clock.instant().atZone(ZoneId.systemDefault()).toLocalDate()
@@ -138,6 +155,9 @@ class LutealViewModel @Inject constructor(
                 dailyEntryRepository.save(entry)
                 biomarkerRepository.save(biomarker)
                 updateCycleForEntry(entry, startsNewCycle)
+                if (entry.bleedingIntensity?.isPeriodFlow() == true) {
+                    addMissingPeriodStarts()
+                }
                 notificationScheduler.reconcileAllSchedules()
             }.onSuccess {
                 operationState.update { it.copy(entrySaveState = EntrySaveState.SUCCESS) }
@@ -244,6 +264,22 @@ class LutealViewModel @Inject constructor(
 
     fun clearOperationError() {
         operationState.update { it.copy(failed = false) }
+    }
+
+    /**
+     * Starts a cycle at every run of logged period flow that no recorded
+     * start covers; see [PeriodStartDetector]. Reads the repositories rather
+     * than [uiState], which may not have caught up with a save yet.
+     */
+    private suspend fun addMissingPeriodStarts() {
+        val missing = PeriodStartDetector.missingStarts(
+            cycles = cycleRepository.getCyclesOnce(),
+            entries = dailyEntryRepository.observeEntries().first()
+        )
+        if (missing.isEmpty()) return
+        missing.forEach { cycleRepository.addBackfilledCycle(it) }
+        notificationScheduler.reconcileAllSchedules()
+        duoProjectionSynchronizer.publishIfTrackerPaired()
     }
 
     private suspend fun updateCycleForEntry(entry: DailyEntry, startsNewCycle: Boolean) {

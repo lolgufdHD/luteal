@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -48,9 +49,9 @@ import kotlin.math.sin
  * - The gap at the top, marked with a drop, is where the next period is
  *   expected to begin.
  *
- * The ring needs a total to divide by. Callers must only pass a
- * [ringLength] derived from the user's own estimate (never a fixed 28-day
- * assumption), and fall back to [CycleDayRing] when no estimate exists.
+ * The ring needs a total to divide by: the pill pack, the user's own
+ * estimate, or (before any completed cycle) a typical 28 days that the
+ * caller must label as such. See [fr.luteal.core.model.CycleCountdownCalculator].
  */
 @Composable
 fun CyclePeriodRing(
@@ -59,6 +60,8 @@ fun CyclePeriodRing(
     flowByDay: Map<Int, BleedingIntensity>,
     estimatedDays: Set<Int>,
     dayLabel: String,
+    /** Optional per-day tint of the track: what that day will probably be. */
+    phaseTints: Map<Int, Color> = emptyMap(),
     accessibleLabel: String,
     modifier: Modifier = Modifier,
     centerContent: @Composable ColumnScope.() -> Unit
@@ -111,6 +114,20 @@ fun CyclePeriodRing(
                 size = arcSize,
                 style = Stroke(width = strokePx, cap = StrokeCap.Round)
             )
+
+            // Probable phases, as a thinner tinted band inside the track
+            for (day in 1..length) {
+                val tint = phaseTints[day] ?: continue
+                drawArc(
+                    color = tint,
+                    startAngle = angleAt(day - 1f),
+                    sweepAngle = perDay + if (day < length) 0.4f else 0f,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokePx * 0.55f, cap = StrokeCap.Butt)
+                )
+            }
 
             // Recorded flow, one slice per day, rounded at each run's ends
             for (day in 1..length) {

@@ -21,6 +21,7 @@ import fr.luteal.core.model.TrackingContext
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import javax.inject.Inject
@@ -62,6 +63,8 @@ data class UserPreferences(
     val notificationCustomTitle: String = "",
     val notificationCustomBody: String = "",
     val temperatureUnit: String = "CELSIUS",
+    /** Tab the app opens on: TODAY, JOURNAL, DUO or SETTINGS. */
+    val startDestination: String = "TODAY",
     val isPillRegimenEnabled: Boolean = false,
     val pillActiveDays: Int = 21,
     val pillPauseDays: Int = 7,
@@ -171,6 +174,8 @@ class UserPreferencesDataStore @Inject constructor(
         val NOTIF_CUSTOM_TITLE = stringPreferencesKey("notif_custom_title")
         val NOTIF_CUSTOM_BODY = stringPreferencesKey("notif_custom_body")
         val TEMPERATURE_UNIT = stringPreferencesKey("temperature_unit")
+        val START_DESTINATION = stringPreferencesKey("start_destination")
+        val PERIOD_START_INFERENCE_DONE = booleanPreferencesKey("period_start_inference_v1_done")
         val PILL_REGIMEN_ENABLED = booleanPreferencesKey("pill_regimen_enabled")
         val PILL_ACTIVE_DAYS = intPreferencesKey("pill_active_days")
         val PILL_PAUSE_DAYS = intPreferencesKey("pill_pause_days")
@@ -235,6 +240,7 @@ class UserPreferencesDataStore @Inject constructor(
                 notificationCustomTitle = preferences[NOTIF_CUSTOM_TITLE] ?: "",
                 notificationCustomBody = preferences[NOTIF_CUSTOM_BODY] ?: "",
                 temperatureUnit = preferences[TEMPERATURE_UNIT] ?: "CELSIUS",
+                startDestination = preferences[START_DESTINATION] ?: "TODAY",
                 isPillRegimenEnabled = preferences[PILL_REGIMEN_ENABLED] ?: false,
                 pillActiveDays = preferences[PILL_ACTIVE_DAYS] ?: 21,
                 pillPauseDays = preferences[PILL_PAUSE_DAYS] ?: 7,
@@ -310,6 +316,13 @@ class UserPreferencesDataStore @Inject constructor(
     suspend fun setNotificationCustomTitle(title: String) = edit { it[NOTIF_CUSTOM_TITLE] = title }
     suspend fun setNotificationCustomBody(body: String) = edit { it[NOTIF_CUSTOM_BODY] = body }
     suspend fun setTemperatureUnit(unit: String) = edit { it[TEMPERATURE_UNIT] = unit }
+    suspend fun setStartDestination(destination: String) = edit { it[START_DESTINATION] = destination }
+
+    /** One-time repair of flow runs that were never marked as a period start. */
+    suspend fun isPeriodStartInferenceDone(): Boolean =
+        context.dataStore.data.catch { emit(emptyPreferences()) }.first()[PERIOD_START_INFERENCE_DONE] ?: false
+
+    suspend fun setPeriodStartInferenceDone() = edit { it[PERIOD_START_INFERENCE_DONE] = true }
     suspend fun setPillRegimenEnabled(enabled: Boolean) = edit { it[PILL_REGIMEN_ENABLED] = enabled }
     suspend fun setPillActiveDays(days: Int) = edit {
         it[PILL_ACTIVE_DAYS] = days.coerceIn(PillRegimenCalculator.MIN_ACTIVE_DAYS, PillRegimenCalculator.MAX_ACTIVE_DAYS)

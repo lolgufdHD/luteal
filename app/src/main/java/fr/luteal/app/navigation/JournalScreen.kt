@@ -455,6 +455,8 @@ fun JournalScreen(
                     CalendarOwnerSwitch(
                         viewingPartner = viewingPartner,
                         sharedMonths = partnerInputs.months,
+                        updatedOn = partnerInputs.to,
+                        sharedCycleStarts = partnerInputs.cycles.size,
                         onSelect = { partner ->
                             sheetDate = null
                             showPartnerCalendar = partner
@@ -730,8 +732,11 @@ private data class CalendarSource(
 private fun CalendarOwnerSwitch(
     viewingPartner: Boolean,
     sharedMonths: Int,
+    updatedOn: LocalDate,
+    sharedCycleStarts: Int,
     onSelect: (Boolean) -> Unit
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xxs)) {
         Row(horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
             FilterChip(
@@ -748,6 +753,21 @@ private fun CalendarOwnerSwitch(
         if (viewingPartner) {
             Text(
                 text = stringResource(R.string.journal_partner_readonly_hint, sharedMonths),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            // When the copy was last published, so a stale share is visible
+            // instead of looking like missing data.
+            Text(
+                text = stringResource(
+                    R.string.journal_partner_snapshot,
+                    updatedOn.format(
+                        java.time.format.DateTimeFormatter
+                            .ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+                            .withLocale(locale)
+                    ),
+                    sharedCycleStarts
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

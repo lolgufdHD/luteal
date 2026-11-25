@@ -69,7 +69,12 @@ import fr.luteal.core.designsystem.theme.LutealSpacing
 import fr.luteal.core.designsystem.theme.PhaseTone
 import fr.luteal.core.model.BleedingIntensity
 import fr.luteal.core.model.CurrentCyclePhase
+import fr.luteal.core.model.CountdownBasis
+import fr.luteal.core.model.CountdownPhase
+import fr.luteal.core.model.CycleCountdown
+import fr.luteal.core.model.CycleCountdownCalculator
 import fr.luteal.core.model.CycleEstimateCalculator
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import fr.luteal.core.model.CycleEstimateResult
 import fr.luteal.core.model.CycleFacts
 import fr.luteal.core.model.CyclePhase
@@ -150,51 +155,86 @@ fun TodayScreen(
     }
 }
 
-/** What the cycle ring draws; null when there is no estimate to size the ring with. */
+/** What the cycle ring draws: a countdown from the last period to the next. */
 private data class CycleRingModel(
-    val length: Int,
-    val dayOfCycle: Int,
+    val countdown: CycleCountdown,
     val flowByDay: Map<Int, BleedingIntensity>,
     val estimatedDays: Set<Int>
 )
 
 private fun buildCycleRingModel(state: LutealUiState): CycleRingModel? {
-    val cycle = state.currentCycle ?: return null
-    val day = state.dayOfCycle ?: return null
-    val estimate = state.estimate ?: return null
-    val daysToNext = ChronoUnit.DAYS.between(cycle.startDate, estimate.centralDate).toInt()
-    val length = maxOf(daysToNext, day)
-    if (length !in 1..120) return null
+    val countdown = CycleCountdownCalculator.evaluate(
+        today = state.today,
+        currentCycle = state.currentCycle,
+        cycles = state.cycles,
+        entries = state.entries,
+        estimate = state.estimate,
+        pillConfig = state.preferences.pillRegimenConfig
+    ) ?: return null
+    val anchor = countdown.anchor
+    val day = countdown.dayIndex
 
     fun recordedIndex(date: LocalDate): Int? {
-        val idx = ChronoUnit.DAYS.between(cycle.startDate, date).toInt() + 1
+        val idx = ChronoUnit.DAYS.between(anchor, date).toInt() + 1
         return idx.takeIf { it in 1..day }
     }
 
     val flow = mutableMapOf<Int, BleedingIntensity>()
-    cycle.periodDays.forEach { pd -> recordedIndex(pd.date)?.let { flow[it] = pd.bleedingIntensity } }
+    state.cycles.flatMap { it.periodDays }.forEach { pd ->
+        recordedIndex(pd.date)?.let { flow[it] = pd.bleedingIntensity }
+    }
     state.entries.forEach { entry ->
         val intensity = entry.bleedingIntensity ?: return@forEach
         recordedIndex(entry.date)?.let { flow[it] = intensity }
     }
     flow.values.removeAll { it == BleedingIntensity.NONE }
 
-    val window = estimate.earliestDate..estimate.latestDate
-    val estimated = (1..length).filter { d ->
-        val date = cycle.startDate.plusDays((d - 1).toLong())
-        date.isAfter(state.today) && date in window && d !in flow
-    }.toSet()
+    // The user's estimate window, where it falls inside this ring. A pill
+    // pack has no window: the pause date is known.
+    val estimated = if (countdown.basis == CountdownBasis.PERSONAL) {
+        val window = state.estimate?.let { it.earliestDate..it.latestDate }
+        (1..maxOf(countdown.length, day)).filter { d ->
+            val date = anchor.plusDays((d - 1).toLong())
+            window != null && date.isAfter(state.today) && date in window && d !in flow
+        }.toSet()
+    } else {
+        emptySet()
+    }
 
-    return CycleRingModel(length, day, flow, estimated)
+    return CycleRingModel(countdown, flow, estimated)
 }
+
+@Composable
+private fun countdownPhaseColor(phase: CountdownPhase): androidx.compose.ui.graphics.Color {
+    val phases = LocalPhaseColors.current
+    return when (phase) {
+        CountdownPhase.BLEED -> phases.menstrual.content.copy(alpha = 0.45f)
+        CountdownPhase.FOLLICULAR -> phases.follicular.content.copy(alpha = 0.45f)
+        CountdownPhase.OVULATION -> phases.ovulatory.content.copy(alpha = 0.6f)
+        CountdownPhase.LUTEAL -> phases.luteal.content.copy(alpha = 0.45f)
+        CountdownPhase.PILL_ACTIVE -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+    }
+}
+
+@Composable
+private fun countdownPhaseLabel(phase: CountdownPhase): String = stringResource(
+    when (phase) {
+        CountdownPhase.BLEED -> R.string.countdown_phase_bleed
+        CountdownPhase.FOLLICULAR -> R.string.countdown_phase_follicular
+        CountdownPhase.OVULATION -> R.string.countdown_phase_ovulation
+        CountdownPhase.LUTEAL -> R.string.countdown_phase_luteal
+        CountdownPhase.PILL_ACTIVE -> R.string.countdown_phase_pill_active
+    }
+)
 
 @Composable
 private fun CycleRingHero(state: LutealUiState, model: CycleRingModel) {
     val locale = LocalConfiguration.current.locales[0]
-    val estimate = state.estimate ?: return
+    val countdown = model.countdown
+    val day = countdown.dayIndex
     val todayHasFlow = state.todayEntry?.bleedingIntensity?.isPeriodFlow() == true
-    val daysUntilCentral = ChronoUnit.DAYS.between(state.today, estimate.centralDate).toInt()
-    val daysPastWindow = ChronoUnit.DAYS.between(estimate.latestDate, state.today).toInt()
+    val isPill = countdown.basis == CountdownBasis.PILL_PACK
+    val nextDate = LocalizedDateFormatter.formatShortDate(countdown.nextStart, locale)
 
     val todayWord = stringResource(R.string.today_title)
     val todayLine = buildAnnotatedString {
@@ -202,41 +242,54 @@ private fun CycleRingHero(state: LutealUiState, model: CycleRingModel) {
         append(", ")
         append(LocalizedDateFormatter.formatShortDate(state.today, locale))
     }
+    val daysLeft = countdown.daysUntilNext
+    val daysLate = day - countdown.length
     val headline = when {
-        todayHasFlow -> stringResource(R.string.cycle_ring_period_day, model.dayOfCycle)
-        daysUntilCentral > 0 -> stringResource(
-            R.string.cycle_ring_next_period,
-            LocalizedDateFormatter.formatShortDate(estimate.centralDate, locale)
-        )
-        daysPastWindow > 0 -> pluralStringResource(
-            R.plurals.estimate_past_window,
-            daysPastWindow,
-            daysPastWindow
-        )
-        else -> stringResource(R.string.estimate_in_progress)
+        todayHasFlow -> stringResource(R.string.cycle_ring_period_day, day)
+        countdown.isLate -> pluralStringResource(R.plurals.countdown_days_late, daysLate, daysLate)
+        daysLeft <= 1 -> stringResource(if (isPill) R.string.countdown_pause_tomorrow else R.string.countdown_period_tomorrow)
+        isPill -> pluralStringResource(R.plurals.countdown_days_until_pause, daysLeft, daysLeft)
+        else -> pluralStringResource(R.plurals.countdown_days_until_period, daysLeft, daysLeft)
     }
-    val support = if (daysPastWindow <= 0) {
-        stringResource(
-            R.string.estimate_window_subhead,
-            LocalizedDateFormatter.formatShortDate(estimate.earliestDate, locale),
-            LocalizedDateFormatter.formatShortDate(estimate.latestDate, locale)
-        )
-    } else {
-        null
+    val support = when (countdown.basis) {
+        CountdownBasis.PILL_PACK -> stringResource(R.string.countdown_support_pill, nextDate)
+        CountdownBasis.PERSONAL -> state.estimate?.let {
+            stringResource(
+                R.string.estimate_window_subhead,
+                LocalizedDateFormatter.formatShortDate(it.earliestDate, locale),
+                LocalizedDateFormatter.formatShortDate(it.latestDate, locale)
+            )
+        }
+        CountdownBasis.TYPICAL -> stringResource(R.string.countdown_support_typical, nextDate)
     }
+    val probablePhase = countdown.phaseOn(day)?.takeUnless { todayHasFlow || countdown.isLate }
+    val phaseLine = probablePhase?.let { stringResource(R.string.countdown_probably, countdownPhaseLabel(it)) }
     val a11y = listOfNotNull(
-        stringResource(R.string.cycle_day, model.dayOfCycle),
+        stringResource(R.string.cycle_day, day),
         headline,
-        support
+        support,
+        phaseLine
     ).joinToString(". ")
 
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    val phaseTints = buildMap {
+        countdown.segments.forEach { segment ->
+            val color = countdownPhaseColor(segment.phase)
+            for (d in segment.firstDay..segment.lastDay) put(d, color)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)
+    ) {
         CyclePeriodRing(
-            ringLength = model.length,
-            dayOfCycle = model.dayOfCycle,
+            ringLength = countdown.length,
+            dayOfCycle = day,
             flowByDay = model.flowByDay,
             estimatedDays = model.estimatedDays,
             dayLabel = stringResource(R.string.cycle_ring_day_label),
+            phaseTints = phaseTints,
             accessibleLabel = a11y,
             modifier = Modifier.widthIn(max = 360.dp)
         ) {
@@ -260,6 +313,45 @@ private fun CycleRingHero(state: LutealUiState, model: CycleRingModel) {
                     textAlign = TextAlign.Center
                 )
             }
+            phaseLine?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        CountdownLegend(countdown)
+    }
+}
+
+/** What each tint on the ring means; every phase except the bleed is an estimate. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CountdownLegend(countdown: CycleCountdown) {
+    val phases = countdown.segments.map { it.phase }.distinct()
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { },
+        horizontalArrangement = Arrangement.spacedBy(LutealSpacing.md, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(LutealSpacing.xxs)
+    ) {
+        phases.forEach { phase ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xxs)
+            ) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(countdownPhaseColor(phase), CircleShape)
+                )
+                Text(
+                    text = countdownPhaseLabel(phase),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -269,7 +361,7 @@ private fun CycleHeroCard(state: LutealUiState) {
     val cycle = state.currentCycle
     val locale = LocalConfiguration.current.locales[0]
     val ringModel = remember(state) { buildCycleRingModel(state) }
-    if (cycle != null && ringModel != null) {
+    if (ringModel != null) {
         CycleRingHero(state = state, model = ringModel)
         LutealCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.md)) {
@@ -673,6 +765,41 @@ private fun PillRegimenCard(
 @Composable
 private fun EstimateSection(state: LutealUiState, onBackfillCycle: () -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
+    // Under a pill regimen the next bleed follows the pack, not the cycle
+    // history: show the pause date instead of a cycle estimate.
+    val pillCountdown = remember(state.today, state.preferences.pillRegimenConfig) {
+        CycleCountdownCalculator.evaluate(
+            today = state.today,
+            currentCycle = null,
+            cycles = emptyList(),
+            entries = emptyList(),
+            estimate = null,
+            pillConfig = state.preferences.pillRegimenConfig
+        )?.takeIf { it.basis == CountdownBasis.PILL_PACK }
+    }
+    if (pillCountdown != null) {
+        LutealCard(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.estimate_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.height(LutealSpacing.xs))
+            Text(
+                text = stringResource(
+                    R.string.countdown_pill_next_bleed,
+                    LocalizedDateFormatter.formatShortDate(pillCountdown.nextStart, locale)
+                ),
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(Modifier.height(LutealSpacing.xxs))
+            Text(
+                text = stringResource(R.string.countdown_pill_next_bleed_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        return
+    }
     LutealCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),

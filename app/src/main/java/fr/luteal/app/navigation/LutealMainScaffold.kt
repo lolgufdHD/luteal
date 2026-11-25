@@ -59,7 +59,12 @@ fun LutealMainScaffold(
     viewModel: LutealViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedDestination by rememberSaveable { mutableStateOf(LutealDestination.TODAY) }
+    // Null until the user (or a widget/import) picks a tab: until then the
+    // app shows the start screen chosen in Settings. Saved across rotation
+    // and process death, so the preference applies only to a fresh launch.
+    var chosenDestination by rememberSaveable { mutableStateOf<LutealDestination?>(null) }
+    val selectedDestination = chosenDestination
+        ?: LutealDestination.fromPreference(uiState.preferences.startDestination)
     var editorRequest by remember { mutableStateOf<EditorRequest?>(null) }
     var showBackfillDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -72,7 +77,7 @@ fun LutealMainScaffold(
         val json = pendingImportJson ?: return@LaunchedEffect
         if (!uiState.preferences.hasCompletedOnboarding) return@LaunchedEffect
 
-        selectedDestination = LutealDestination.SETTINGS
+        chosenDestination = LutealDestination.SETTINGS
         settingsViewModel.inspectBackupJson(json)
         onPendingImportConsumed()
     }
@@ -85,15 +90,15 @@ fun LutealMainScaffold(
         if (!uiState.preferences.hasCompletedOnboarding) return@LaunchedEffect
         when (destination) {
             fr.luteal.app.MainActivity.WIDGET_DESTINATION_TODAY -> {
-                selectedDestination = LutealDestination.TODAY
+                chosenDestination = LutealDestination.TODAY
             }
             fr.luteal.app.MainActivity.WIDGET_DESTINATION_TODAY_EDITOR -> {
-                selectedDestination = LutealDestination.TODAY
+                chosenDestination = LutealDestination.TODAY
                 viewModel.clearEntrySaveState()
                 editorRequest = EditorRequest(uiState.today, startPeriodIntent = false)
             }
             fr.luteal.app.MainActivity.WIDGET_DESTINATION_DUO -> {
-                selectedDestination = LutealDestination.DUO
+                chosenDestination = LutealDestination.DUO
             }
         }
         onWidgetDestinationConsumed()
@@ -130,7 +135,7 @@ fun LutealMainScaffold(
                 bottomBar = {
                     LutealBottomNavigationBar(
                         selectedDestination = selectedDestination,
-                        onSelectDestination = { selectedDestination = it }
+                        onSelectDestination = { chosenDestination = it }
                     )
                 }
             ) { contentPadding ->
@@ -179,7 +184,7 @@ fun LutealMainScaffold(
                             )
                             LutealDestination.DUO -> DuoScreen(
                                 onOpenSettings = {
-                                    selectedDestination = LutealDestination.SETTINGS
+                                    chosenDestination = LutealDestination.SETTINGS
                                 }
                             )
                             LutealDestination.SETTINGS -> SettingsScreen(viewModel = settingsViewModel)
@@ -303,4 +308,10 @@ internal enum class LutealDestination(
     SETTINGS(R.string.nav_settings, Icons.Rounded.Settings, Icons.Outlined.Settings);
 
     val icon: ImageVector get() = selectedIcon
+
+    companion object {
+        /** The stored start-screen preference; unknown values fall back to Today. */
+        fun fromPreference(name: String?): LutealDestination =
+            entries.firstOrNull { it.name == name } ?: TODAY
+    }
 }
