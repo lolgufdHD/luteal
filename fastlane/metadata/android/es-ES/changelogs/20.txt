@@ -1,0 +1,4 @@
+- Hoy: el anillo del ciclo es ahora una cuenta atrás hasta el próximo periodo (o descanso de la píldora), con lo probable de cada día.
+- Registrar sangrado inicia ahora un ciclo nuevo; los inicios que faltan se añaden una vez.
+- Ajustes: elige la pantalla de inicio de la app.
+- Duo: el diario compartido muestra cuándo se actualizó.

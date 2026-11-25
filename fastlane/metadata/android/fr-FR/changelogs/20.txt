@@ -1,0 +1,4 @@
+- Aujourd'hui : l'anneau du cycle devient un compte à rebours jusqu'aux prochaines règles (ou pause de pilule), avec ce qui est probable chaque jour.
+- Noter des saignements démarre désormais un nouveau cycle ; les débuts manquants sont ajoutés une fois.
+- Réglages : choisissez l'écran d'ouverture.
+- Duo : le journal partagé indique sa dernière mise à jour.

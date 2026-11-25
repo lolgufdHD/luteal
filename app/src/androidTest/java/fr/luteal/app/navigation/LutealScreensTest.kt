@@ -92,7 +92,8 @@ class LutealScreensTest {
         composeRule.onAllNodesWithText(string(R.string.estimated_label)).assertCountEquals(1)
         // The day count is rendered as a numeral inside the cycle ring, which
         // carries the full phrase as its accessible name.
-        composeRule.onNodeWithContentDescription(string(R.string.cycle_day, 1)).assertIsDisplayed()
+        // (followed by the countdown headline and the likely phase).
+        composeRule.onNodeWithContentDescription(string(R.string.cycle_day, 1), substring = true).assertIsDisplayed()
         // Clinical framing the product deliberately avoids: a literal, because
         // the point is that this word appears in no resource at all.
         composeRule.onNodeWithText("Menstruations").assertDoesNotExist()

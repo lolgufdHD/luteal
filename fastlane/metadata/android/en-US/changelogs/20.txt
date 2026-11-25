@@ -1,0 +1,4 @@
+- Today: the cycle ring is now a countdown to the next period (or pill break), showing what is likely on each day.
+- Logging flow now starts a new cycle automatically; missing period starts are added once.
+- Settings: choose which screen the app opens on.
+- Duo: the shared journal shows when it was last updated.
