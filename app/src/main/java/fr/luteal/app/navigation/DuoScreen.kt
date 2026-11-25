@@ -82,6 +82,8 @@ import fr.luteal.core.model.CurrentCyclePhase
 import fr.luteal.core.model.DuoSharingField
 import fr.luteal.core.model.DuoSharingPreferences
 import fr.luteal.core.model.QuickSupportNudges
+import fr.luteal.core.model.SharedCountdown
+import fr.luteal.core.model.SharedCountdownMapper
 import androidx.compose.ui.res.pluralStringResource
 import fr.luteal.core.network.contract.models.GrantField
 import fr.luteal.core.network.contract.models.SupportKind
@@ -495,7 +497,7 @@ private fun TrackerActiveSection(
                 )
             }
             val anyGranted = state.grants.values.any { it } || state.sharePillStatus ||
-                state.historySharing.sharesAnyHistory
+                state.historySharing.sharesAnyHistory || state.historySharing.shareCountdown
             val partnerPhase = state.partnerPhase
             if (!state.keyMissing && anyGranted && partnerPhase is CurrentCyclePhase.Available) {
                 PartnerPhaseBadge(
@@ -504,6 +506,9 @@ private fun TrackerActiveSection(
                 )
             }
             SharedProjectionList(state = state)
+            if (!state.keyMissing) {
+                state.projection?.countdown?.let { SharedCountdownRing(it) }
+            }
             TextButton(
                 onClick = onOpenGuideSheet,
                 modifier = Modifier.align(Alignment.End)
@@ -713,6 +718,18 @@ private fun PartnerActiveSection(
         }
     }
 
+    state.projection?.countdown?.takeIf { !state.keyMissing }?.let { shared ->
+        LutealCard(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)) {
+                Text(
+                    text = stringResource(R.string.duo_partner_countdown_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                SharedCountdownRing(shared)
+            }
+        }
+    }
+
     val sharedPill = state.projection?.pillStatus
     if (sharedPill != null) {
         LutealCard(modifier = Modifier.fillMaxWidth()) {
@@ -820,8 +837,8 @@ private fun SharedProjectionList(state: DuoUiState) {
     val locale = LocalConfiguration.current.locales[0]
     val isTracker = state.phase == DuoPhase.TrackerActive
     val anyGranted = state.grants.values.any { it } || state.sharePillStatus ||
-        projection?.pillStatus != null || projection?.history != null ||
-        (isTracker && state.historySharing.sharesAnyHistory)
+        projection?.pillStatus != null || projection?.history != null || projection?.countdown != null ||
+        (isTracker && (state.historySharing.sharesAnyHistory || state.historySharing.shareCountdown))
 
     when {
         // The link key lives only on the paired devices. Without it the payload
@@ -886,6 +903,9 @@ private fun SharedProjectionList(state: DuoUiState) {
                         )
                     }
                     add(line)
+                }
+                projection.countdown?.let {
+                    add(stringResource(R.string.duo_view_countdown))
                 }
                 projection.history?.let { history ->
                     add(
@@ -968,6 +988,12 @@ private fun DuoGrantsSection(
                     onCheckedChange = onTogglePillSharing
                 )
             }
+            BooleanGrantToggle(
+                checked = state.historySharing.shareCountdown,
+                titleRes = R.string.duo_share_countdown,
+                descRes = R.string.duo_share_countdown_desc,
+                onCheckedChange = { historyActions.onToggle(DuoSharingField.COUNTDOWN, it) }
+            )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -1011,6 +1037,17 @@ private fun DuoGrantsSection(
             )
         }
     }
+}
+
+/**
+ * The tracker's Today countdown ring, rebuilt for this device's date so the
+ * day count keeps moving between payloads.
+ */
+@Composable
+private fun SharedCountdownRing(shared: SharedCountdown) {
+    val today = LocalDate.now()
+    val ring = remember(shared, today) { SharedCountdownMapper.toRingData(shared, today) } ?: return
+    CountdownRingView(ring = ring, today = today)
 }
 
 /** Device-local shared-journal grants; see [fr.luteal.core.model.DuoSharingPreferences]. */

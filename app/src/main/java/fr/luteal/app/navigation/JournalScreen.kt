@@ -26,7 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.ui.platform.LocalDensity
 import fr.luteal.core.designsystem.component.CalendarWeekdayHeader
 import androidx.compose.material3.FilterChip
 import fr.luteal.core.model.CycleEstimateResult
@@ -160,8 +159,6 @@ fun JournalScreen(
     val context = LocalContext.current
     var viewMode by rememberSaveable { mutableStateOf(initialViewMode) }
     val listState = rememberLazyListState()
-    val density = LocalDensity.current
-    val stickyHeaderOffsetPx = with(density) { CalendarStickyHeaderHeight.roundToPx() }
     // Duo partner side: the tracker's shared journal, as last received.
     val partnerInputs = remember(state.preferences.duoPartnerSharedHistoryJson) {
         state.preferences.duoPartnerSharedHistoryJson
@@ -241,7 +238,7 @@ fun JournalScreen(
     LaunchedEffect(viewMode, viewingPartner) {
         if (viewMode == JournalViewMode.CALENDAR && scrolledForPartner != viewingPartner) {
             scrolledForPartner = viewingPartner
-            listState.scrollToItem(monthItemIndex(YearMonth.from(state.today)), -stickyHeaderOffsetPx)
+            listState.scrollToItem(monthItemIndex(YearMonth.from(state.today)))
         }
     }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -319,22 +316,22 @@ fun JournalScreen(
             onSelectMonth = { target ->
                 showMonthPicker = false
                 coroutineScope.launch {
-                    listState.animateScrollToItem(monthItemIndex(target), -stickyHeaderOffsetPx)
+                    listState.animateScrollToItem(monthItemIndex(target))
                 }
             }
         )
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            horizontal = LutealSpacing.md,
-            vertical = LutealSpacing.lg
-        ),
-        verticalArrangement = Arrangement.spacedBy(LutealSpacing.md)
-    ) {
-        item {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Pinned header: title, view tabs and, in the calendar, the own/partner
+        // switch, month toolbar and weekday row stay visible while content scrolls.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(start = LutealSpacing.md, end = LutealSpacing.md, top = LutealSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -353,9 +350,7 @@ fun JournalScreen(
                     )
                 }
             }
-        }
 
-        item {
             @Suppress("DEPRECATION")
             ScrollableTabRow(
                 selectedTabIndex = viewMode.ordinal,
@@ -445,12 +440,8 @@ fun JournalScreen(
                     }
                 )
             }
-        }
 
-        if (viewMode == JournalViewMode.CALENDAR) {
-            // Index 2
-            item(key = "calendar-toolbar") {
-                Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
+            if (viewMode == JournalViewMode.CALENDAR) {
                 if (partnerInputs != null) {
                     CalendarOwnerSwitch(
                         viewingPartner = viewingPartner,
@@ -469,31 +460,34 @@ fun JournalScreen(
                     onTitleClick = { showMonthPicker = true },
                     onJumpToToday = {
                         coroutineScope.launch {
-                            listState.animateScrollToItem(
-                                monthItemIndex(YearMonth.from(state.today)),
-                                -stickyHeaderOffsetPx
-                            )
+                            listState.animateScrollToItem(monthItemIndex(YearMonth.from(state.today)))
                         }
                     }
                 )
-                }
+                CalendarWeekdayHeader(modifier = Modifier.height(CalendarStickyHeaderHeight))
             }
+        }
 
-            // Index 3
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentPadding = PaddingValues(
+                start = LutealSpacing.md,
+                end = LutealSpacing.md,
+                top = LutealSpacing.sm,
+                bottom = LutealSpacing.lg
+            ),
+            verticalArrangement = Arrangement.spacedBy(LutealSpacing.md)
+        ) {
+        if (viewMode == JournalViewMode.CALENDAR) {
+            // Index 0
             item(key = "calendar-legend") {
                 CalendarLegendCard(showPillLegend = isPillRegimenEnabled)
             }
 
-            // Index 4: weekday row stays pinned while the months scroll under it
-            stickyHeader(key = "calendar-weekdays") {
-                CalendarWeekdayHeader(
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.background)
-                        .height(CalendarStickyHeaderHeight)
-                )
-            }
-
-            // Index 5 onward (CalendarMonthsFirstIndex): one item per month
+            // Index 1 onward (CalendarMonthsFirstIndex): one item per month
             items(calendarMonths, key = { "month-$it" }) { month ->
                 val projection = remember(month, state.today, calendarSource, firstDayOfWeek) {
                     calendarSource.project(month, state.today, firstDayOfWeek)
@@ -614,6 +608,7 @@ fun JournalScreen(
             item {
                 ObservationPatternsCard(state = state, onSelectDate = onSelectDate)
             }
+        }
         }
     }
 
@@ -834,8 +829,8 @@ private fun PartnerDayCard(
     }
 }
 
-/** Position of the first month in the calendar LazyColumn (header, tabs, toolbar, legend, weekday row come first). */
-private const val CalendarMonthsFirstIndex = 5
+/** Position of the first month in the calendar LazyColumn (only the legend comes first; the header is pinned above the list). */
+private const val CalendarMonthsFirstIndex = 1
 private val CalendarStickyHeaderHeight = 32.dp
 
 @Composable

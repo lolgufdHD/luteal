@@ -7,6 +7,8 @@ data class DuoSharingPreferences(
     val shareEnergy: Boolean = false,
     val shareSupportRequests: Boolean = false,
     val sharePillStatus: Boolean = false,
+    /** Device-local like pill status: the Today countdown ring. */
+    val shareCountdown: Boolean = false,
     // Shared journal (history). Like pill status these are device-local
     // grants: the tracker's device applies them when sealing the projection,
     // so the server needs no new grant fields and never sees the data.
@@ -35,6 +37,7 @@ enum class DuoSharingField {
     ENERGY,
     SUPPORT_REQUESTS,
     PILL_STATUS,
+    COUNTDOWN,
     HISTORY_FLOW,
     HISTORY_ESTIMATE,
     HISTORY_LEVELS,

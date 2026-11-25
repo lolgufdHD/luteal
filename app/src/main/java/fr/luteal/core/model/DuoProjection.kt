@@ -30,7 +30,9 @@ data class DuoProjection(
      * Shared journal. Optional and additive: older clients ignore it
      * (ContractJson has ignoreUnknownKeys), so the payload version stays 1.
      */
-    @SerialName("history") val history: SharedHistory? = null
+    @SerialName("history") val history: SharedHistory? = null,
+    /** The Today countdown ring. Optional and additive like [history]. */
+    @SerialName("countdown") val countdown: SharedCountdown? = null
 ) {
     companion object {
         const val CURRENT_VERSION = 1
@@ -92,6 +94,41 @@ data class SharedPillHistory(
     @SerialName("active_days") val activeDays: Int,
     @SerialName("pause_days") val pauseDays: Int,
     @SerialName("taken") val takenDates: List<String> = emptyList()
+)
+
+/**
+ * The tracker's countdown ring: from the last period (or pill pause) to the
+ * next. Day numbers are 1-based from [anchor]. Only flow intensities and the
+ * estimate are included, never notes or symptoms.
+ */
+@Serializable
+data class SharedCountdown(
+    /** The tracker's "today" when this was composed. */
+    @SerialName("date") val date: String,
+    @SerialName("anchor") val anchor: String,
+    @SerialName("length") val length: Int,
+    /** One of pill_pack, personal, typical. */
+    @SerialName("basis") val basis: String,
+    @SerialName("segments") val segments: List<SharedCountdownSegment>,
+    @SerialName("flow") val flow: List<SharedRingFlow> = emptyList(),
+    @SerialName("estimated_days") val estimatedDays: List<Int> = emptyList(),
+    @SerialName("window_start") val windowStart: String? = null,
+    @SerialName("window_end") val windowEnd: String? = null
+)
+
+@Serializable
+data class SharedCountdownSegment(
+    /** One of bleed, follicular, ovulation, luteal, pill_active. */
+    @SerialName("phase") val phase: String,
+    @SerialName("first") val firstDay: Int,
+    @SerialName("last") val lastDay: Int
+)
+
+@Serializable
+data class SharedRingFlow(
+    @SerialName("day") val day: Int,
+    /** One of spotting, light, medium, heavy. */
+    @SerialName("intensity") val intensity: String
 )
 
 @Serializable

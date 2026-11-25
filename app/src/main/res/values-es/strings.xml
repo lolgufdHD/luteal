@@ -932,6 +932,10 @@
     <string name="inspection_pill_action_undo_taken">Deshacer toma de la píldora</string>
     <string name="duo_share_pill_status">Seguimiento del blíster</string>
     <string name="duo_share_pill_status_desc">Compartir los días de toma o descanso y si se ha registrado la píldora de hoy.</string>
+    <string name="duo_share_countdown">Cuenta atrás del ciclo</string>
+    <string name="duo_share_countdown_desc">Compartir el anillo de Hoy: días hasta el próximo periodo o descanso de la píldora, la fase probable y el sangrado registrado en el ciclo actual.</string>
+    <string name="duo_view_countdown">Cuenta atrás del ciclo (anillo debajo)</string>
+    <string name="duo_partner_countdown_title">Cuenta atrás del ciclo</string>
     <string name="duo_history_group_title">Diario compartido</string>
     <string name="duo_history_group_body">Tu pareja ve estos días en un calendario de solo lectura en su Diario. Las notas, síntomas, dolor y biomarcadores nunca se comparten.</string>
     <string name="duo_share_history_flow">Regla y flujo</string>

@@ -49,6 +49,60 @@ data class CycleCountdown(
     fun phaseOn(day: Int): CountdownPhase? = segments.firstOrNull { day in it.firstDay..it.lastDay }?.phase
 }
 
+/**
+ * Everything the countdown ring draws, by ring day (1 = [CycleCountdown.anchor]).
+ * Built on the tracker's device; the Duo partner receives the same shape.
+ */
+data class CycleRingData(
+    val countdown: CycleCountdown,
+    val flowByDay: Map<Int, BleedingIntensity>,
+    val estimatedDays: Set<Int>,
+    /** The personal estimate window, only for [CountdownBasis.PERSONAL]. */
+    val estimateWindow: ClosedRange<LocalDate>? = null
+)
+
+object CycleRingDataBuilder {
+    fun build(
+        today: LocalDate,
+        countdown: CycleCountdown,
+        cycles: List<Cycle>,
+        entries: List<DailyEntry>,
+        estimate: CycleEstimate?
+    ): CycleRingData {
+        val anchor = countdown.anchor
+        val day = countdown.dayIndex
+
+        fun recordedIndex(date: LocalDate): Int? {
+            val idx = ChronoUnit.DAYS.between(anchor, date).toInt() + 1
+            return idx.takeIf { it in 1..day }
+        }
+
+        val flow = mutableMapOf<Int, BleedingIntensity>()
+        cycles.flatMap { it.periodDays }.forEach { pd ->
+            recordedIndex(pd.date)?.let { flow[it] = pd.bleedingIntensity }
+        }
+        entries.forEach { entry ->
+            val intensity = entry.bleedingIntensity ?: return@forEach
+            recordedIndex(entry.date)?.let { flow[it] = intensity }
+        }
+        flow.values.removeAll { it == BleedingIntensity.NONE }
+
+        // The estimate window, where it falls inside this ring. A pill pack
+        // has no window: the pause date is known.
+        val window = estimate?.takeIf { countdown.basis == CountdownBasis.PERSONAL }
+            ?.let { it.earliestDate..it.latestDate }
+        val estimated = if (window != null) {
+            (1..maxOf(countdown.length, day)).filter { d ->
+                val date = anchor.plusDays((d - 1).toLong())
+                date.isAfter(today) && date in window && d !in flow
+            }.toSet()
+        } else {
+            emptySet()
+        }
+        return CycleRingData(countdown, flow, estimated, window)
+    }
+}
+
 object CycleCountdownCalculator {
     const val TYPICAL_CYCLE_DAYS = 28
     const val TYPICAL_PERIOD_DAYS = 5

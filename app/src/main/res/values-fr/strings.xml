@@ -923,6 +923,10 @@
     <string name="inspection_pill_action_undo_taken">Annuler la prise de pilule</string>
     <string name="duo_share_pill_status">Suivi de plaquette</string>
     <string name="duo_share_pill_status_desc">Partager les jours actifs ou de pause et si la pilule du jour a été prise.</string>
+    <string name="duo_share_countdown">Compte à rebours du cycle</string>
+    <string name="duo_share_countdown_desc">Partager l’anneau d’Aujourd’hui : jours avant les prochaines règles ou la pause de pilule, la phase probable et les saignements notés dans le cycle en cours.</string>
+    <string name="duo_view_countdown">Compte à rebours du cycle (anneau ci-dessous)</string>
+    <string name="duo_partner_countdown_title">Compte à rebours du cycle</string>
     <string name="duo_history_group_title">Journal partagé</string>
     <string name="duo_history_group_body">Votre partenaire voit ces jours dans un calendrier en lecture seule, dans son Journal. Les notes, symptômes, douleurs et biomarqueurs ne sont jamais partagés.</string>
     <string name="duo_share_history_flow">Règles et flux</string>

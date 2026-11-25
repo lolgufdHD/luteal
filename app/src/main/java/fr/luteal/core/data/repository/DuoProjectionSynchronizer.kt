@@ -4,7 +4,10 @@ import fr.luteal.app.notification.DuoPartnerPillAlertNotifier
 import fr.luteal.app.notification.NotificationScheduler
 import fr.luteal.core.data.datastore.UserPreferencesDataStore
 import fr.luteal.core.model.AgeBand
+import fr.luteal.core.model.CycleCountdownCalculator
 import fr.luteal.core.model.CycleEstimateCalculator
+import fr.luteal.core.model.CycleRingDataBuilder
+import fr.luteal.core.model.SharedCountdownMapper
 import fr.luteal.core.model.DuoProjection
 import fr.luteal.core.model.PillDayStatus
 import fr.luteal.core.model.PillRegimenCalculator
@@ -141,13 +144,29 @@ class DuoProjectionSynchronizer @Inject constructor(
             estimate = nextPeriodEstimate
         )
 
+        // The Today countdown ring, computed exactly as on the tracker's Today screen.
+        val countdown = if (preferences.duoSharing.shareCountdown) {
+            val currentCycle = cycles.firstOrNull { it.endDate == null && !it.startDate.isAfter(today) }
+                ?: cycles.filter { !it.startDate.isAfter(today) }.maxByOrNull { it.startDate }
+            CycleCountdownCalculator.evaluate(
+                today = today,
+                currentCycle = currentCycle,
+                cycles = cycles,
+                entries = allEntries,
+                estimate = nextPeriodEstimate,
+                pillConfig = preferences.pillRegimenConfig
+            )?.let { CycleRingDataBuilder.build(today, it, cycles, allEntries, nextPeriodEstimate) }
+                ?.let { SharedCountdownMapper.compose(today, it) }
+        } else null
+
         return DuoProjection(
             cycleDay = cycleDay,
             periodEstimate = estimate,
             mood = mood,
             energy = energy,
             pillStatus = pillStatus,
-            history = history
+            history = history,
+            countdown = countdown
         )
     }
 

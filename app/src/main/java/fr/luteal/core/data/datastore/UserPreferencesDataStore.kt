@@ -146,6 +146,7 @@ class UserPreferencesDataStore @Inject constructor(
         val SHARE_ENERGY = booleanPreferencesKey("share_energy")
         val SHARE_SUPPORT_REQUESTS = booleanPreferencesKey("share_support_requests")
         val SHARE_PILL_STATUS = booleanPreferencesKey("share_pill_status")
+        val SHARE_COUNTDOWN = booleanPreferencesKey("share_countdown")
         val SHARE_HISTORY_FLOW = booleanPreferencesKey("share_history_flow")
         val SHARE_HISTORY_ESTIMATE = booleanPreferencesKey("share_history_estimate")
         val SHARE_HISTORY_LEVELS = booleanPreferencesKey("share_history_levels")
@@ -214,6 +215,7 @@ class UserPreferencesDataStore @Inject constructor(
                     shareEnergy = preferences[SHARE_ENERGY] ?: false,
                     shareSupportRequests = preferences[SHARE_SUPPORT_REQUESTS] ?: false,
                     sharePillStatus = preferences[SHARE_PILL_STATUS] ?: false,
+                    shareCountdown = preferences[SHARE_COUNTDOWN] ?: false,
                     shareHistoryFlow = preferences[SHARE_HISTORY_FLOW] ?: false,
                     shareHistoryEstimate = preferences[SHARE_HISTORY_ESTIMATE] ?: false,
                     shareHistoryLevels = preferences[SHARE_HISTORY_LEVELS] ?: false,
@@ -402,6 +404,7 @@ class UserPreferencesDataStore @Inject constructor(
         DuoSharingField.ENERGY -> SHARE_ENERGY
         DuoSharingField.SUPPORT_REQUESTS -> SHARE_SUPPORT_REQUESTS
         DuoSharingField.PILL_STATUS -> SHARE_PILL_STATUS
+        DuoSharingField.COUNTDOWN -> SHARE_COUNTDOWN
         DuoSharingField.HISTORY_FLOW -> SHARE_HISTORY_FLOW
         DuoSharingField.HISTORY_ESTIMATE -> SHARE_HISTORY_ESTIMATE
         DuoSharingField.HISTORY_LEVELS -> SHARE_HISTORY_LEVELS

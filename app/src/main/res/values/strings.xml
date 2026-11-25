@@ -916,6 +916,10 @@
     <string name="inspection_pill_action_undo_taken">Undo pill intake</string>
     <string name="duo_share_pill_status">Pill pack status</string>
     <string name="duo_share_pill_status_desc">Share active and pause pack days and whether today’s pill was taken.</string>
+    <string name="duo_share_countdown">Cycle countdown</string>
+    <string name="duo_share_countdown_desc">Share the ring from Today: days until the next period or pill break, the likely phase and logged flow in the current cycle.</string>
+    <string name="duo_view_countdown">Cycle countdown (ring below)</string>
+    <string name="duo_partner_countdown_title">Cycle countdown</string>
     <string name="duo_history_group_title">Shared journal</string>
     <string name="duo_history_group_body">Your partner sees these days in a read-only calendar in their Journal. Notes, symptoms, pain and biomarkers are never shared.</string>
     <string name="duo_share_history_flow">Period and flow</string>
