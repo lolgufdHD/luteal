@@ -1,0 +1,2 @@
+- Duo: comparte si quieres el anillo de Hoy; tu pareja ve los días hasta el próximo periodo o descanso de la píldora y la fase probable.
+- Diario: el título, las pestañas y el selector del calendario quedan fijos mientras se desplazan los meses.

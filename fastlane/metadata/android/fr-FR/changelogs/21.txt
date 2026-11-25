@@ -1,0 +1,2 @@
+- Duo : partagez si vous le souhaitez l’anneau d’Aujourd’hui ; votre partenaire voit les jours avant les prochaines règles ou la pause de pilule et la phase probable.
+- Journal : titre, onglets et sélecteur du calendrier restent fixés pendant le défilement des mois.

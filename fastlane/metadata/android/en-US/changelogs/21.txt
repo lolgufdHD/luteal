@@ -1,0 +1,2 @@
+- Duo: optionally share your Today countdown ring; your partner sees days until the next period or pill break and the likely phase.
+- Journal: title, tabs and the calendar switch stay pinned while the months scroll.
