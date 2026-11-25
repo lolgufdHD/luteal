@@ -229,8 +229,6 @@
     <string name="duo_share_mood_desc">Compartir solo el nivel que has registrado.</string>
     <string name="duo_share_energy">Energía</string>
     <string name="duo_share_energy_desc">Compartir solo el nivel que has registrado.</string>
-    <string name="duo_share_support">Peticiones de apoyo</string>
-    <string name="duo_share_support_desc">Permitir compartir las peticiones que hagas tú.</string>
     <string name="duo_preview_title">Vista previa para tu pareja</string>
     <string name="duo_preview_body">Esta vista previa solo muestra las categorías que has permitido. No se envía ningún dato.</string>
     <string name="duo_error_invalid_pairing_link">Enlace para compartir incompleto. Pega el enlace completo que te ha dado tu pareja.</string>
@@ -458,16 +456,6 @@
     <string name="duo_view_no_observations">Hoy no hay observaciones registradas en las categorías compartidas.</string>
     <string name="duo_key_missing">La clave de este vínculo Duo no está disponible en este dispositivo. Los datos compartidos no se pueden descifrar aquí. Vuelve a crear el vínculo con tu pareja.</string>
     <string name="duo_share_link_note">Comparte el enlace completo: contiene la clave de cifrado, que nunca se envía al servidor.</string>
-    <string name="duo_support_title">Peticiones de apoyo</string>
-    <string name="duo_support_empty">Aún no hay peticiones de apoyo. Las peticiones activas de tu pareja aparecerán aquí.</string>
-    <string name="duo_support_send">Enviar</string>
-    <string name="duo_support_hint">Escribe un mensaje de apoyo…</string>
-    <string name="duo_support_ack">Marcar como visto</string>
-    <string name="duo_support_acked">Visto</string>
-    <string name="duo_support_kind_general">General</string>
-    <string name="duo_support_kind_comfort">Consuelo</string>
-    <string name="duo_support_kind_practical">Ayuda práctica</string>
-    <string name="duo_support_kind_space">Tiempo a solas</string>
     <string name="duo_refresh">Actualizar</string>
 
     
@@ -798,13 +786,6 @@
     <string name="duo_guide_variability_title">Por qué varía la duración del ciclo</string>
     <string name="duo_guide_variability_body">Los estudios clínicos muestran que la mayor parte de la variación entre un ciclo y otro se da en la fase folicular, antes de la ovulación. La duración del ciclo varía de una persona a otra y no hay una duración estándar única.</string>
     <string name="duo_guide_sheet_close">Cerrar</string>
-    <string name="duo_quick_nudges_label">Apoyo rápido</string>
-    <string name="duo_nudge_groceries">He hecho la compra</string>
-    <string name="duo_nudge_cook_dinner">¿Hago yo la cena?</string>
-    <string name="duo_nudge_quiet_evening">¿Noche tranquila hoy?</string>
-    <string name="duo_nudge_warm_drink">Te he preparado algo caliente</string>
-    <string name="duo_nudge_here_if_needed">Aquí estoy si me necesitas</string>
-    <string name="duo_nudge_take_rest">Descansa lo que necesites</string>
     <string name="partner_tip_partner_menstrual_comfort">Cuidar sin dar por hecho que hay dolor</string>
     <string name="partner_tip_partner_menstrual_comfort_message">Los días de sangrado pueden traer dolor menstrual o cansancio, o ser días normales. Ofrece ayuda y guíate por la respuesta.</string>
     <string name="partner_tip_partner_menstrual_space">Dar espacio también es apoyar</string>

@@ -227,8 +227,6 @@
     <string name="duo_share_mood_desc">Share only the level you recorded.</string>
     <string name="duo_share_energy">Energy</string>
     <string name="duo_share_energy_desc">Share only the level you recorded.</string>
-    <string name="duo_share_support">Support requests</string>
-    <string name="duo_share_support_desc">Allow sharing of requests you make yourself.</string>
     <string name="duo_preview_title">Partner preview</string>
     <string name="duo_preview_body">This preview shows only the categories you allowed. No data is sent.</string>
     <string name="duo_error_invalid_pairing_link">Incomplete sharing link. Paste the full link provided by your partner.</string>
@@ -454,16 +452,6 @@
     <string name="duo_view_no_observations">No observations recorded today for the shared categories.</string>
     <string name="duo_key_missing">The key for this Duo link is not available on this device. Shared data cannot be decrypted here. Create the link with your partner again.</string>
     <string name="duo_share_link_note">Share the full link: it contains the encryption key, which is never sent to the server.</string>
-    <string name="duo_support_title">Support requests</string>
-    <string name="duo_support_empty">No support requests yet. Active requests from your partner will appear here.</string>
-    <string name="duo_support_send">Send</string>
-    <string name="duo_support_hint">Write a message of support…</string>
-    <string name="duo_support_ack">Acknowledge</string>
-    <string name="duo_support_acked">Acknowledged</string>
-    <string name="duo_support_kind_general">General</string>
-    <string name="duo_support_kind_comfort">Comfort</string>
-    <string name="duo_support_kind_practical">Practical</string>
-    <string name="duo_support_kind_space">Space</string>
     <string name="duo_refresh">Refresh</string>
 
     
@@ -786,13 +774,6 @@
     <string name="duo_guide_variability_title">Why cycle lengths vary</string>
     <string name="duo_guide_variability_body">Clinical studies show that most cycle-to-cycle variation occurs in the follicular phase before ovulation. Cycle lengths vary across individuals, and there is no single standard length.</string>
     <string name="duo_guide_sheet_close">Close</string>
-    <string name="duo_quick_nudges_label">Quick support</string>
-    <string name="duo_nudge_groceries">I did the shopping</string>
-    <string name="duo_nudge_cook_dinner">Shall I cook dinner?</string>
-    <string name="duo_nudge_quiet_evening">Quiet evening tonight?</string>
-    <string name="duo_nudge_warm_drink">I made a warm drink</string>
-    <string name="duo_nudge_here_if_needed">I am here if you need me</string>
-    <string name="duo_nudge_take_rest">Take the rest you need</string>
     <string name="partner_tip_partner_menstrual_comfort">Comfort without assuming pain</string>
     <string name="partner_tip_partner_menstrual_comfort_message">Bleeding days can include cramps or fatigue, or they can feel ordinary. Offer help, then follow the answer.</string>
     <string name="partner_tip_partner_menstrual_space">Space is also support</string>

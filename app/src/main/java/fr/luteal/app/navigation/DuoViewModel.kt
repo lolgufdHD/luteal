@@ -40,8 +40,6 @@ import fr.luteal.core.network.contract.models.DuoLink
 import fr.luteal.core.network.contract.models.DuoView
 import fr.luteal.core.network.contract.models.GrantField
 import fr.luteal.core.network.contract.models.Invitation
-import fr.luteal.core.network.contract.models.SupportKind
-import fr.luteal.core.network.contract.models.SupportRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -221,6 +219,15 @@ class DuoViewModel @Inject constructor(
             } else if (serverGrants != null) {
                 persistGrants(serverGrants)
             }
+            // Support requests were removed from the app: withdraw a grant
+            // left over from an older version so the server stops offering it.
+            if (serverGrants?.contains(GrantField.SUPPORT_REQUESTS) == true) {
+                runCatching { duoRepository.patchGrants(view.linkId.toString(), GrantField.SUPPORT_REQUESTS, false) }
+                    .onSuccess {
+                        userRepository.updateDuoSharing(DuoSharingField.SUPPORT_REQUESTS, false)
+                        effectiveGrants = effectiveGrants?.minus(GrantField.SUPPORT_REQUESTS)
+                    }
+            }
         }
         val decodedProjection = projectionDecoder.decode(view)
         widgetCacheWriter.save(view)
@@ -240,7 +247,6 @@ class DuoViewModel @Inject constructor(
                 duoView = view,
                 activeLinkId = view.linkId.toString(),
                 projection = projection,
-                supportMessages = openSupportMessages(view),
                 grants = effectiveGrants?.associateWith { true } ?: it.grants,
                 isPillRegimenEnabled = prefs.isPillRegimenEnabled,
                 sharePillStatus = prefs.duoSharing.sharePillStatus,
@@ -287,8 +293,7 @@ class DuoViewModel @Inject constructor(
         GrantField.CYCLE_DAY to shareCycleDay,
         GrantField.PERIOD_ESTIMATE to sharePeriodEstimate,
         GrantField.MOOD to shareMood,
-        GrantField.ENERGY to shareEnergy,
-        GrantField.SUPPORT_REQUESTS to shareSupportRequests
+        GrantField.ENERGY to shareEnergy
     )
 
     private fun GrantField.toDuoSharingField(): DuoSharingField = when (this) {
@@ -469,54 +474,6 @@ class DuoViewModel @Inject constructor(
         }
     }
 
-    fun sendSupportRequest(kind: SupportKind, message: String) {
-        val linkId = _uiState.value.activeLinkId
-            ?: _uiState.value.duoView?.linkId?.toString()
-            ?: return
-        val key = duoKeyStore.load(linkId)
-        if (key == null) {
-            _uiState.update { it.copy(error = null, errorResId = R.string.duo_error_invalid_pairing_link) }
-            return
-        }
-        viewModelScope.launch {
-            _uiState.update { it.copy(isSendingSupport = true, error = null) }
-            // Sealed before it leaves the device: the server relays support
-            // messages but never reads them. The wire carries base64 (Go
-            // decodes []byte from a base64 string, not a JSON number array).
-            val sealed = Base64.getEncoder().encodeToString(
-                DuoCrypto.sealRaw(key, linkId, message.toByteArray())
-            )
-            runCatching { duoRepository.createSupportRequest(linkId, kind, sealed) }
-                .onSuccess {
-                    _uiState.update { it.copy(isSendingSupport = false, supportDraft = "") }
-                    refresh()
-                }
-                .onFailure { err ->
-                    _uiState.update { it.copy(error = err.message, isSendingSupport = false) }
-                }
-        }
-    }
-
-    fun ackSupportRequest(requestId: String) {
-        viewModelScope.launch {
-            runCatching { duoRepository.ackSupportRequest(requestId) }
-                .onSuccess { refresh() }
-                .onFailure { err -> _uiState.update { it.copy(error = err.message) } }
-        }
-    }
-
-    fun onSupportDraftChange(value: String) {
-        _uiState.update { it.copy(supportDraft = value) }
-    }
-
-    fun applyQuickNudge(text: String, kind: SupportKind, sendImmediately: Boolean) {
-        if (sendImmediately) {
-            sendSupportRequest(kind, text)
-        } else {
-            onSupportDraftChange(text)
-        }
-    }
-
     private suspend fun applyCachedProjection() {
         val cached = widgetCacheRepository.getLatest() ?: return
         val prefs = userRepository.getUserPreferences().first()
@@ -582,25 +539,6 @@ class DuoViewModel @Inject constructor(
 
 
     /**
-     * Decrypts the support thread, keyed by request id.
-     *
-     * A message that fails to open is omitted rather than shown as garbage:
-     * the UI falls back to the request's kind label, which is plaintext
-     * routing metadata and always available.
-     */
-    private fun openSupportMessages(view: DuoView): Map<String, String> {
-        val linkId = view.linkId.toString()
-        val key = duoKeyStore.load(linkId) ?: return emptyMap()
-        return view.supportRequests.orEmpty().mapNotNull { request ->
-            val sealed = request.messageCiphertext ?: return@mapNotNull null
-            runCatching { String(DuoCrypto.openRaw(key, linkId, sealed)) }
-                .getOrNull()
-                ?.takeIf { it.isNotBlank() }
-                ?.let { request.id.toString() to it }
-        }.toMap()
-    }
-
-    /**
      * Composes the projection from local records, applies the grants, seals it,
      * and publishes it.
      *
@@ -660,8 +598,6 @@ data class DuoUiState(
     val duoView: DuoView? = null,
     /** Decrypted projection; null when absent or the link key is missing. */
     val projection: DuoProjection? = null,
-    /** Decrypted support messages, keyed by request id. */
-    val supportMessages: Map<String, String> = emptyMap(),
     /** True when this device has no key for the link and must re-pair. */
     val keyMissing: Boolean = false,
     val activeLinkId: String? = null,
@@ -674,8 +610,6 @@ data class DuoUiState(
     val historySharing: DuoSharingPreferences = DuoSharingPreferences(),
     val isPartnerPillReminderEnabled: Boolean = false,
     val isPartnerPillTakenAlertEnabled: Boolean = false,
-    val supportDraft: String = "",
-    val isSendingSupport: Boolean = false,
     val partnerPhase: CurrentCyclePhase = CurrentCyclePhase.Indeterminate(
         PhaseIndeterminateReason.NO_CURRENT_CYCLE
     ),

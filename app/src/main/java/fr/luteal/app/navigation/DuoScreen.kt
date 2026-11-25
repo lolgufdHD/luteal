@@ -81,13 +81,10 @@ import fr.luteal.app.widget.WidgetFreshness
 import fr.luteal.core.model.CurrentCyclePhase
 import fr.luteal.core.model.DuoSharingField
 import fr.luteal.core.model.DuoSharingPreferences
-import fr.luteal.core.model.QuickSupportNudges
 import fr.luteal.core.model.SharedCountdown
 import fr.luteal.core.model.SharedCountdownMapper
 import androidx.compose.ui.res.pluralStringResource
 import fr.luteal.core.network.contract.models.GrantField
-import fr.luteal.core.network.contract.models.SupportKind
-import fr.luteal.core.network.contract.models.SupportRequest
 import java.time.LocalDate
 
 /**
@@ -192,11 +189,6 @@ fun DuoScreen(
                 onTogglePillSharing = { granted -> viewModel.togglePillStatusSharing(granted) },
                 historyActions = historyActions,
                 onRevoke = { viewModel.revokeLink() },
-                onSendSupport = { kind, msg -> viewModel.sendSupportRequest(kind, msg) },
-                onAck = { viewModel.ackSupportRequest(it) },
-                supportDraft = state.supportDraft,
-                onSupportDraftChange = { viewModel.onSupportDraftChange(it) },
-                isSendingSupport = state.isSendingSupport,
                 onOpenGuideSheet = { showGuideSheet = true }
             )
             DuoPhase.PartnerActive -> PartnerActiveSection(
@@ -204,12 +196,6 @@ fun DuoScreen(
                 onTogglePartnerPillReminder = { viewModel.togglePartnerPillReminder(it) },
                 onTogglePartnerPillTakenAlert = { viewModel.togglePartnerPillTakenAlert(it) },
                 onRevoke = { viewModel.revokeLink() },
-                onSendSupport = { kind, msg -> viewModel.sendSupportRequest(kind, msg) },
-                onAck = { viewModel.ackSupportRequest(it) },
-                onApplyNudge = { text, kind, send -> viewModel.applyQuickNudge(text, kind, send) },
-                supportDraft = state.supportDraft,
-                onSupportDraftChange = { viewModel.onSupportDraftChange(it) },
-                isSendingSupport = state.isSendingSupport,
                 onOpenGuideSheet = { showGuideSheet = true }
             )
         }
@@ -430,11 +416,6 @@ private fun TrackerActiveSection(
     onTogglePillSharing: (Boolean) -> Unit,
     historyActions: HistorySharingActions,
     onRevoke: () -> Unit,
-    onSendSupport: (SupportKind, String) -> Unit,
-    onAck: (String) -> Unit,
-    supportDraft: String,
-    onSupportDraftChange: (String) -> Unit,
-    isSendingSupport: Boolean,
     onOpenGuideSheet: () -> Unit
 ) {
     var showRevokeDialog by remember { mutableStateOf(false) }
@@ -535,15 +516,6 @@ private fun TrackerActiveSection(
         }
     }
 
-    SupportThreadSection(
-        requests = state.duoView?.supportRequests,
-        messages = state.supportMessages,
-        onSendSupport = onSendSupport,
-        onAck = onAck,
-        supportDraft = supportDraft,
-        onSupportDraftChange = onSupportDraftChange,
-        isSendingSupport = isSendingSupport
-    )
 
     LutealCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
@@ -654,12 +626,6 @@ private fun PartnerActiveSection(
     onTogglePartnerPillReminder: (Boolean) -> Unit,
     onTogglePartnerPillTakenAlert: (Boolean) -> Unit,
     onRevoke: () -> Unit,
-    onSendSupport: (SupportKind, String) -> Unit,
-    onAck: (String) -> Unit,
-    onApplyNudge: (String, SupportKind, Boolean) -> Unit,
-    supportDraft: String,
-    onSupportDraftChange: (String) -> Unit,
-    isSendingSupport: Boolean,
     onOpenGuideSheet: () -> Unit
 ) {
     var showRevokeDialog by remember { mutableStateOf(false) }
@@ -800,16 +766,6 @@ private fun PartnerActiveSection(
         }
     }
 
-    SupportThreadSection(
-        requests = state.duoView?.supportRequests,
-        messages = state.supportMessages,
-        onSendSupport = onSendSupport,
-        onAck = onAck,
-        onApplyNudge = onApplyNudge,
-        supportDraft = supportDraft,
-        onSupportDraftChange = onSupportDraftChange,
-        isSendingSupport = isSendingSupport
-    )
 
     LutealCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)) {
@@ -1020,13 +976,6 @@ private fun DuoGrantsSection(
                 state = state,
                 onToggleGrant = onToggleGrant
             )
-            GrantToggle(
-                field = GrantField.SUPPORT_REQUESTS,
-                titleRes = R.string.duo_share_support,
-                descRes = R.string.duo_share_support_desc,
-                state = state,
-                onToggleGrant = onToggleGrant
-            )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -1115,125 +1064,6 @@ private fun SharedJournalGrants(
                     }
                 )
             }
-        }
-    }
-}
-
-// --- Support thread ---------------------------------------------------------
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SupportThreadSection(
-    requests: List<SupportRequest>?,
-    messages: Map<String, String>,
-    onSendSupport: (SupportKind, String) -> Unit,
-    onAck: (String) -> Unit,
-    supportDraft: String,
-    onSupportDraftChange: (String) -> Unit,
-    isSendingSupport: Boolean,
-    onApplyNudge: ((String, SupportKind, Boolean) -> Unit)? = null
-) {
-    val locale = LocalConfiguration.current.locales[0]
-    LutealCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.sm)) {
-            Text(
-                text = stringResource(R.string.duo_support_title),
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            if (requests.isNullOrEmpty()) {
-                Text(
-                    text = stringResource(R.string.duo_support_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                requests.forEach { request ->
-                    Column(verticalArrangement = Arrangement.spacedBy(LutealSpacing.xxs)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Falls back to the kind label when the message
-                            // cannot be decrypted: kind is plaintext routing
-                            // metadata and is always available.
-                            Text(
-                                text = messages[request.id.toString()]
-                                    ?: stringResource(
-                                        when (request.kind) {
-                                            SupportKind.COMFORT ->
-                                                R.string.duo_support_kind_comfort
-                                            SupportKind.PRACTICAL ->
-                                                R.string.duo_support_kind_practical
-                                            SupportKind.SPACE ->
-                                                R.string.duo_support_kind_space
-                                            else -> R.string.duo_support_kind_general
-                                        }
-                                    ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (request.acknowledgedAt == null) {
-                                TextButton(onClick = { onAck(request.id.toString()) }) {
-                                    Text(text = stringResource(R.string.duo_support_ack))
-                                }
-                            } else {
-                                Text(
-                                    text = stringResource(R.string.duo_support_acked),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Text(
-                            text = LocalizedDateFormatter.formatShortDate(
-                                request.createdAt.toLocalDate(),
-                                locale
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                }
-            }
-
-            if (onApplyNudge != null) {
-                Text(
-                    text = stringResource(R.string.duo_quick_nudges_label),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(LutealSpacing.xs),
-                    verticalArrangement = Arrangement.spacedBy(LutealSpacing.xs)
-                ) {
-                    QuickSupportNudges.ALL.forEach { nudge ->
-                        val text = nudgeText(nudge.textResName)
-                        FilterChip(
-                            selected = false,
-                            onClick = { onApplyNudge(text, nudge.kind, true) },
-                            label = { Text(text) },
-                            shape = MaterialTheme.shapes.small,
-                            modifier = Modifier.heightIn(min = 48.dp)
-                        )
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = supportDraft,
-                onValueChange = onSupportDraftChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.duo_support_hint)) }
-            )
-            LutealPrimaryButton(
-                text = stringResource(R.string.duo_support_send),
-                onClick = { onSendSupport(SupportKind.GENERAL, supportDraft.trim()) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = supportDraft.isNotBlank(),
-                loading = isSendingSupport
-            )
         }
     }
 }
@@ -1447,18 +1277,6 @@ private fun freshnessLabel(freshness: WidgetFreshness, refreshedAt: java.time.In
         WidgetFreshness.STALE -> stringResource(R.string.duo_freshness_stale, stamp)
     }
 }
-
-@Composable
-private fun nudgeText(name: String): String = stringResource(
-    when (name) {
-        "duo_nudge_groceries" -> R.string.duo_nudge_groceries
-        "duo_nudge_cook_dinner" -> R.string.duo_nudge_cook_dinner
-        "duo_nudge_quiet_evening" -> R.string.duo_nudge_quiet_evening
-        "duo_nudge_warm_drink" -> R.string.duo_nudge_warm_drink
-        "duo_nudge_here_if_needed" -> R.string.duo_nudge_here_if_needed
-        else -> R.string.duo_nudge_take_rest
-    }
-)
 
 @Composable
 private fun partnerTipTitle(id: String): String {

@@ -229,8 +229,6 @@
     <string name="duo_share_mood_desc">Partager uniquement le niveau que vous avez renseigné.</string>
     <string name="duo_share_energy">Énergie</string>
     <string name="duo_share_energy_desc">Partager uniquement le niveau que vous avez renseigné.</string>
-    <string name="duo_share_support">Demandes de soutien</string>
-    <string name="duo_share_support_desc">Permettre le partage de demandes que vous formulez vous-même.</string>
     <string name="duo_preview_title">Aperçu partenaire</string>
     <string name="duo_preview_body">Cet aperçu montre seulement les catégories autorisées. Aucune donnée n’est transmise.</string>
     <string name="duo_error_invalid_pairing_link">Lien de partage incomplet. Collez le lien complet fourni par votre partenaire.</string>
@@ -458,16 +456,6 @@
     <string name="duo_view_no_observations">Aucune observation enregistrée aujourd’hui pour les catégories partagées.</string>
     <string name="duo_key_missing">La clé de ce lien Duo n’est pas disponible sur cet appareil. Les données partagées ne peuvent pas être déchiffrées ici. Recréez le lien avec votre partenaire.</string>
     <string name="duo_share_link_note">Partagez le lien complet&#160;: il contient la clé de chiffrement, qui n’est jamais transmise au serveur.</string>
-    <string name="duo_support_title">Demandes de soutien</string>
-    <string name="duo_support_empty">Aucune demande de soutien pour le moment. Les demandes de votre partenaire apparaîtront ici.</string>
-    <string name="duo_support_send">Envoyer</string>
-    <string name="duo_support_hint">Écrivez un message de soutien…</string>
-    <string name="duo_support_ack">Acquitter</string>
-    <string name="duo_support_acked">Acquittée</string>
-    <string name="duo_support_kind_general">Général</string>
-    <string name="duo_support_kind_comfort">Réconfort</string>
-    <string name="duo_support_kind_practical">Pratique</string>
-    <string name="duo_support_kind_space">Espace</string>
     <string name="duo_refresh">Actualiser</string>
 
     
@@ -790,13 +778,6 @@
     <string name="duo_guide_variability_title">Pourquoi la durée du cycle varie</string>
     <string name="duo_guide_variability_body">Les études cliniques montrent que la variabilité d’un cycle à l’autre se situe principalement dans la phase folliculaire avant l’ovulation. La durée varie selon les personnes, sans modèle unique.</string>
     <string name="duo_guide_sheet_close">Fermer</string>
-    <string name="duo_quick_nudges_label">Soutien rapide</string>
-    <string name="duo_nudge_groceries">J’ai fait les courses</string>
-    <string name="duo_nudge_cook_dinner">Je prépare le dîner&#160;?</string>
-    <string name="duo_nudge_quiet_evening">Soirée calme ce soir&#160;?</string>
-    <string name="duo_nudge_warm_drink">J’ai préparé une boisson chaude</string>
-    <string name="duo_nudge_here_if_needed">Je suis là si besoin</string>
-    <string name="duo_nudge_take_rest">Prends le repos dont tu as besoin</string>
     <string name="partner_tip_partner_menstrual_comfort">Confort sans présumer de la douleur</string>
     <string name="partner_tip_partner_menstrual_comfort_message">Les jours de saignement peuvent inclure des crampes ou de la fatigue, ou sembler ordinaires. Proposez de l’aide, puis suivez la réponse.</string>
     <string name="partner_tip_partner_menstrual_space">L’espace est aussi un soutien</string>
